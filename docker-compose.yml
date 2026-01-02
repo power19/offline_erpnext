@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ERPNEXT_URL=${ERPNEXT_URL}
+      - ERPNEXT_API_KEY=${ERPNEXT_API_KEY}
+      - ERPNEXT_API_SECRET=${ERPNEXT_API_SECRET}
+      - DEFAULT_WAREHOUSE=${DEFAULT_WAREHOUSE:-Stores - Company}
+      - DEFAULT_COMPANY=${DEFAULT_COMPANY:-Your Company}
+      - DEBUG=false
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
