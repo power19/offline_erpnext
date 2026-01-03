@@ -87,7 +87,8 @@ export const useCartStore = create<CartState>()(
             if (item.discount_percentage > 0) {
               finalAmount = baseAmount * (1 - item.discount_percentage / 100);
             } else if (item.discount_amount > 0) {
-              finalAmount = baseAmount - (item.discount_amount * qty);
+              // discount_amount is a flat discount for the entire line
+              finalAmount = baseAmount - item.discount_amount;
             }
 
             return { ...item, qty, amount: finalAmount };
@@ -126,7 +127,8 @@ export const useCartStore = create<CartState>()(
                 amount: finalAmount
               };
             } else {
-              finalAmount = baseAmount - (discount.value * item.qty);
+              // discount_amount is a flat discount for the entire line
+              finalAmount = baseAmount - discount.value;
               return {
                 ...item,
                 discount_percentage: 0,
