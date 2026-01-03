@@ -66,8 +66,8 @@ export default function POSPage() {
       item_code: item.item_code,
       item_name: item.item_name,
       qty: 1,
-      rate: item.standard_rate,
-      amount: item.standard_rate,
+      rate: item.price_list_rate,
+      amount: item.price_list_rate,
       discount_percentage: 0,
       discount_amount: 0,
       uom: item.stock_uom,
@@ -155,7 +155,7 @@ export default function POSPage() {
                     <div className="text-sm text-gray-500">{item.item_code}</div>
                   </div>
                   <div className="text-primary-600 font-medium">
-                    {formatCurrency(item.standard_rate)}
+                    {formatCurrency(item.price_list_rate)}
                   </div>
                 </button>
               ))}
@@ -181,7 +181,7 @@ export default function POSPage() {
                 </div>
                 <div className="font-medium text-sm truncate">{item.item_name}</div>
                 <div className="text-primary-600 font-bold">
-                  {formatCurrency(item.standard_rate)}
+                  {formatCurrency(item.price_list_rate)}
                 </div>
               </button>
             ))}

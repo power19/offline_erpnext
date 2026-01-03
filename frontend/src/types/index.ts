@@ -8,7 +8,8 @@ export interface Item {
   stock_uom: string;
   description?: string;
   image?: string;
-  standard_rate: number;
+  standard_rate?: number;
+  price_list_rate: number;
   has_variants?: number;
   variant_of?: string;
   synced?: boolean;

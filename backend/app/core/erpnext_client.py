@@ -106,9 +106,10 @@ class ERPNextClient:
         self,
         search: Optional[str] = None,
         item_group: Optional[str] = None,
-        limit: int = 5000
+        limit: int = 5000,
+        price_list: str = "Standard Selling"
     ) -> List[Dict[str, Any]]:
-        """Get items for POS."""
+        """Get items for POS with prices from Item Price doctype."""
         filters = {"disabled": 0, "is_sales_item": 1}
 
         if item_group:
@@ -124,7 +125,29 @@ class ERPNextClient:
             # Search by item_code or item_name
             filters["item_name"] = ["like", f"%{search}%"]
 
-        return self.get_list("Item", fields=fields, filters=filters, limit_page_length=limit)
+        items = self.get_list("Item", fields=fields, filters=filters, limit_page_length=limit)
+
+        # Fetch all item prices in bulk
+        try:
+            item_prices = self.get_list(
+                "Item Price",
+                fields=["item_code", "price_list_rate"],
+                filters={"price_list": price_list, "selling": 1},
+                limit_page_length=10000
+            )
+            # Create a lookup dict for prices
+            price_map = {p["item_code"]: p["price_list_rate"] for p in item_prices}
+
+            # Merge prices into items
+            for item in items:
+                item["price_list_rate"] = price_map.get(item["item_code"], item.get("standard_rate", 0))
+        except Exception as e:
+            logger.warning(f"Could not fetch item prices: {e}")
+            # Fallback to standard_rate
+            for item in items:
+                item["price_list_rate"] = item.get("standard_rate", 0)
+
+        return items
 
     def get_item_price(self, item_code: str, price_list: str = "Standard Selling") -> Optional[float]:
         """Get item price from price list."""
