@@ -17,6 +17,8 @@ export default function POSPage() {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [erpnextUrl, setErpnextUrl] = useState('');
+  const [lastInvoice, setLastInvoice] = useState<{ name?: string; offline_id: string } | null>(null);
+  const [showPrintAfterSale, setShowPrintAfterSale] = useState(false);
 
   const {
     items: cartItems,
@@ -149,12 +151,34 @@ export default function POSPage() {
       });
 
       toast.success('Invoice created successfully!');
+
+      // Store last invoice for printing
+      setLastInvoice({
+        name: invoice.name,
+        offline_id: invoice.offline_id
+      });
+      setShowPrintAfterSale(true);
+
       clearCart();
       clearPayments();
     } catch (error) {
       toast.error('Failed to create invoice');
       console.error(error);
     }
+  };
+
+  // Print using ERPNext print format
+  const handlePrintInvoice = () => {
+    if (!lastInvoice?.name || !erpnextUrl) {
+      toast.error('Invoice not synced yet. Please try again after sync.');
+      return;
+    }
+
+    const printFormat = posProfile?.print_format || '';
+    const printUrl = `${erpnextUrl}/printview?doctype=POS%20Invoice&name=${encodeURIComponent(lastInvoice.name)}&format=${encodeURIComponent(printFormat)}`;
+
+    window.open(printUrl, '_blank');
+    setShowPrintAfterSale(false);
   };
 
   return (
@@ -480,6 +504,43 @@ export default function POSPage() {
           warehouse={warehouse}
           onClose={() => setShowPrintPreview(false)}
         />
+      )}
+
+      {/* Print After Sale Modal */}
+      {showPrintAfterSale && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl w-full max-w-sm p-6 text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold mb-2">Sale Complete!</h3>
+            <p className="text-gray-600 mb-4">
+              {lastInvoice?.name
+                ? `Invoice ${lastInvoice.name} created`
+                : 'Invoice saved locally. Will sync when online.'}
+            </p>
+
+            <div className="space-y-2">
+              {lastInvoice?.name && erpnextUrl && (
+                <button onClick={handlePrintInvoice} className="btn btn-primary w-full">
+                  <Printer size={18} className="mr-2" />
+                  Print Receipt
+                  {posProfile?.print_format && (
+                    <span className="text-xs ml-1 opacity-75">({posProfile.print_format})</span>
+                  )}
+                </button>
+              )}
+              <button
+                onClick={() => setShowPrintAfterSale(false)}
+                className="btn btn-secondary w-full"
+              >
+                New Sale
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
