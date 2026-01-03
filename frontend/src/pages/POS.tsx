@@ -61,13 +61,19 @@ export default function POSPage() {
   // Get all items for display
   const allItems = useLiveQuery(() => db.items.limit(50).toArray(), [], []);
 
+  // Helper to get item price with fallback
+  const getItemPrice = (item: Item): number => {
+    return item.price_list_rate ?? item.standard_rate ?? 0;
+  };
+
   const handleAddToCart = (item: Item) => {
+    const price = getItemPrice(item);
     const cartItem: CartItem = {
       item_code: item.item_code,
       item_name: item.item_name,
       qty: 1,
-      rate: item.price_list_rate,
-      amount: item.price_list_rate,
+      rate: price,
+      amount: price,
       discount_percentage: 0,
       discount_amount: 0,
       uom: item.stock_uom,
@@ -155,7 +161,7 @@ export default function POSPage() {
                     <div className="text-sm text-gray-500">{item.item_code}</div>
                   </div>
                   <div className="text-primary-600 font-medium">
-                    {formatCurrency(item.price_list_rate)}
+                    {formatCurrency(getItemPrice(item))}
                   </div>
                 </button>
               ))}
@@ -181,7 +187,7 @@ export default function POSPage() {
                 </div>
                 <div className="font-medium text-sm truncate">{item.item_name}</div>
                 <div className="text-primary-600 font-bold">
-                  {formatCurrency(item.price_list_rate)}
+                  {formatCurrency(getItemPrice(item))}
                 </div>
               </button>
             ))}
