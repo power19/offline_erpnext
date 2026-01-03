@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Server, Key, Link, Eye, EyeOff, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import { Server, Key, Link, Eye, EyeOff, CheckCircle, AlertCircle, Loader, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../services/database';
+import { api } from '../services/api';
 
 export default function SetupPage() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function SetupPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [saving, setSaving] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string>('');
 
   // Load existing settings
   useEffect(() => {
@@ -53,14 +55,14 @@ export default function SetupPage() {
 
       if (data.success) {
         setTestResult('success');
-        toast.success('Connection successful!');
+        toast.success(`Connected as ${data.user || 'user'}!`);
       } else {
         setTestResult('error');
         toast.error(data.error || 'Connection failed');
       }
     } catch (error) {
       setTestResult('error');
-      toast.error('Could not reach the server');
+      toast.error('Could not reach the server. Make sure backend is running.');
     } finally {
       setTesting(false);
     }
@@ -73,15 +75,16 @@ export default function SetupPage() {
     }
 
     setSaving(true);
+    setSyncStatus('Saving settings...');
 
     try {
       // Save to IndexedDB
       await db.setSetting('erpnext_url', erpnextUrl.replace(/\/$/, '')); // Remove trailing slash
       await db.setSetting('erpnext_api_key', apiKey);
       await db.setSetting('erpnext_api_secret', apiSecret);
-      await db.setSetting('setup_complete', 'true');
 
-      // Also update the backend config
+      // Update the backend config
+      setSyncStatus('Configuring backend...');
       await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -92,10 +95,57 @@ export default function SetupPage() {
         })
       });
 
-      toast.success('Settings saved successfully!');
+      // Pull initial data from ERPNext
+      setSyncStatus('Pulling items from ERPNext...');
+      try {
+        const data = await api.pullData(
+          ['Item', 'Customer', 'Warehouse', 'POS Profile', 'Mode of Payment']
+        );
+
+        // Save to IndexedDB
+        if (data.items?.length > 0) {
+          setSyncStatus(`Saving ${data.items.length} items...`);
+          await db.items.bulkPut(
+            data.items.map((item: Record<string, unknown>) => ({ ...item, synced: true }))
+          );
+        }
+
+        if (data.customers?.length > 0) {
+          setSyncStatus(`Saving ${data.customers.length} customers...`);
+          await db.customers.bulkPut(
+            data.customers.map((c: Record<string, unknown>) => ({ ...c, synced: true }))
+          );
+        }
+
+        if (data.warehouses?.length > 0) {
+          setSyncStatus(`Saving ${data.warehouses.length} warehouses...`);
+          await db.warehouses.bulkPut(data.warehouses);
+        }
+
+        if (data.pos_profiles?.length > 0) {
+          await db.posProfiles.bulkPut(data.pos_profiles);
+        }
+
+        if (data.payment_methods?.length > 0) {
+          await db.paymentMethods.bulkPut(data.payment_methods);
+        }
+
+        await db.setSetting('lastSync', new Date().toISOString());
+
+        const itemCount = data.items?.length || 0;
+        const customerCount = data.customers?.length || 0;
+        toast.success(`Synced ${itemCount} items, ${customerCount} customers!`);
+      } catch (syncError) {
+        console.error('Sync error:', syncError);
+        toast.error('Could not pull data. You can sync later from Settings.');
+      }
+
+      await db.setSetting('setup_complete', 'true');
+      setSyncStatus('');
       navigate('/pos');
     } catch (error) {
       toast.error('Failed to save settings');
+      setSyncStatus('');
     } finally {
       setSaving(false);
     }
@@ -198,11 +248,19 @@ export default function SetupPage() {
             </div>
           )}
 
+          {/* Sync Status */}
+          {syncStatus && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 text-blue-700">
+              <Loader size={18} className="animate-spin" />
+              <span>{syncStatus}</span>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-3 pt-4">
             <button
               onClick={testConnection}
-              disabled={testing || !erpnextUrl}
+              disabled={testing || saving || !erpnextUrl}
               className="btn btn-secondary flex-1"
             >
               {testing ? (
@@ -222,10 +280,13 @@ export default function SetupPage() {
               {saving ? (
                 <>
                   <Loader size={18} className="animate-spin mr-2" />
-                  Saving...
+                  Syncing...
                 </>
               ) : (
-                'Save & Continue'
+                <>
+                  <Download size={18} className="mr-1" />
+                  Save & Sync
+                </>
               )}
             </button>
           </div>
