@@ -2,6 +2,7 @@
 ERPNext API Client for interacting with ERPNext backend.
 """
 import requests
+import json
 from typing import Any, Dict, List, Optional
 import logging
 
@@ -78,9 +79,9 @@ class ERPNextClient:
         }
 
         if fields:
-            params["fields"] = str(fields)
+            params["fields"] = json.dumps(fields)
         if filters:
-            params["filters"] = str(filters)
+            params["filters"] = json.dumps(filters)
         if order_by:
             params["order_by"] = order_by
 
