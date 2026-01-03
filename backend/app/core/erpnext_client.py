@@ -106,7 +106,7 @@ class ERPNextClient:
         self,
         search: Optional[str] = None,
         item_group: Optional[str] = None,
-        limit: int = 50
+        limit: int = 5000
     ) -> List[Dict[str, Any]]:
         """Get items for POS."""
         filters = {"disabled": 0, "is_sales_item": 1}
@@ -297,7 +297,7 @@ class ERPNextClient:
 
     # ========== Customer Operations ==========
 
-    def get_customers(self, search: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_customers(self, search: Optional[str] = None, limit: int = 5000) -> List[Dict[str, Any]]:
         """Get list of customers."""
         filters = {"disabled": 0}
 

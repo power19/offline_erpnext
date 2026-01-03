@@ -56,7 +56,7 @@ class PullRequest(BaseModel):
     """Request to pull data from ERPNext."""
     doctypes: List[str] = ["Item", "Customer", "Warehouse"]
     last_sync: Optional[datetime] = None
-    limit: int = 100
+    limit: int = 5000  # Increased to handle larger catalogs
 
 
 class PullResponse(BaseModel):
