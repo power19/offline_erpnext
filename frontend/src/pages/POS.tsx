@@ -38,8 +38,7 @@ export default function POSPage() {
     getTotalPaid,
     getBalance,
     warehouse,
-    posProfile,
-    discount
+    posProfile
   } = useCartStore();
 
   // Search items from IndexedDB
