@@ -96,7 +96,7 @@ async def login(request: LoginRequest):
                 # Get POS Profiles where this user is listed
                 all_profiles = client.get_list(
                     "POS Profile",
-                    fields=["name", "warehouse", "company", "disabled"],
+                    fields=["name", "warehouse", "company", "disabled", "customer"],
                     filters={"disabled": 0}
                 )
 
@@ -112,16 +112,19 @@ async def login(request: LoginRequest):
                         pu.get("user") == logged_user for pu in profile_users
                     )
 
+                    is_default_for_user = any(
+                        pu.get("user") == logged_user and pu.get("default")
+                        for pu in profile_users
+                    )
+
                     # Admin sees all profiles, staff only sees assigned ones
                     if is_admin or user_in_profile:
                         pos_profiles.append({
                             "name": profile["name"],
                             "warehouse": profile.get("warehouse"),
                             "company": profile.get("company"),
-                            "is_default": any(
-                                pu.get("user") == logged_user and pu.get("default")
-                                for pu in profile_users
-                            )
+                            "customer": profile.get("customer"),  # Default customer (Walk-in)
+                            "is_default": is_default_for_user
                         })
                         if profile.get("warehouse"):
                             allowed_warehouses.append(profile["warehouse"])

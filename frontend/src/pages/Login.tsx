@@ -4,10 +4,12 @@ import { User, Lock, Eye, EyeOff, Loader, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../services/database';
 import { useAuthStore } from '../store/auth';
+import { useCartStore } from '../store';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { setUser, setIsAuthenticated } = useAuthStore();
+  const { setWarehouse, setPosProfile, setCustomer } = useCartStore();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,6 +51,35 @@ export default function LoginPage() {
           setError('No POS Profile assigned to your account. Contact administrator.');
           setLoading(false);
           return;
+        }
+
+        // Auto-set warehouse, POS profile and default customer from user's default profile
+        const profiles = data.user.pos_profiles;
+        if (profiles && profiles.length > 0) {
+          // Find default profile or use first one
+          const defaultProfile = profiles.find((p: any) => p.is_default) || profiles[0];
+
+          // Set POS Profile
+          const posProfile = await db.posProfiles.where('name').equals(defaultProfile.name).first();
+          if (posProfile) {
+            setPosProfile(posProfile);
+          }
+
+          // Set warehouse from the profile
+          if (defaultProfile.warehouse) {
+            const warehouse = await db.warehouses.where('name').equals(defaultProfile.warehouse).first();
+            if (warehouse) {
+              setWarehouse(warehouse);
+            }
+          }
+
+          // Set default customer (Walk-in Customer) from the profile
+          if (defaultProfile.customer) {
+            const customer = await db.customers.where('name').equals(defaultProfile.customer).first();
+            if (customer) {
+              setCustomer(customer);
+            }
+          }
         }
 
         navigate('/pos');

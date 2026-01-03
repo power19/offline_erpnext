@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Search, Plus, Minus, Trash2, User, Percent, DollarSign, X } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, User, Percent, DollarSign, X, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../services/database';
 import { syncService } from '../services/sync';
@@ -35,7 +35,8 @@ export default function POSPage() {
     getTotal,
     getTotalPaid,
     getBalance,
-    warehouse
+    warehouse,
+    posProfile
   } = useCartStore();
 
   // Search items from IndexedDB
@@ -136,6 +137,17 @@ export default function POSPage() {
     <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-4 p-4">
       {/* Left side - Products */}
       <div className="flex-1 flex flex-col min-h-0">
+        {/* Warehouse indicator */}
+        {warehouse && (
+          <div className="mb-3 flex items-center gap-2 text-sm text-gray-600">
+            <MapPin size={16} className="text-primary-500" />
+            <span className="font-medium">{warehouse.warehouse_name || warehouse.name}</span>
+            {posProfile && (
+              <span className="text-gray-400">• {posProfile.name}</span>
+            )}
+          </div>
+        )}
+
         {/* Search bar */}
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />

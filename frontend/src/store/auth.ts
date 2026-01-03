@@ -5,6 +5,7 @@ export interface POSProfileInfo {
   name: string;
   warehouse?: string;
   company?: string;
+  customer?: string;  // Default customer (e.g., Walk-in Customer)
   is_default?: boolean;
 }
 
@@ -29,6 +30,7 @@ interface AuthState {
   hasAccessToWarehouse: (warehouse: string) => boolean;
   hasAccessToProfile: (profile: string) => boolean;
   isAdmin: () => boolean;
+  getDefaultProfile: () => POSProfileInfo | null;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -92,5 +94,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAdmin: () => {
     const { user } = get();
     return user?.role === 'Admin';
+  },
+
+  getDefaultProfile: () => {
+    const { user } = get();
+    if (!user || user.pos_profiles.length === 0) return null;
+    // Return the default profile or the first one
+    return user.pos_profiles.find(p => p.is_default) || user.pos_profiles[0];
   }
 }));
