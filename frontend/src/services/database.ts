@@ -39,6 +39,20 @@ export class OfflinePOSDatabase extends Dexie {
       paymentMethods: '++id, name',
       settings: '++id, &key'
     });
+
+    // Version 2: Add created_at index to invoices and stockEntries
+    this.version(2).stores({
+      items: '++id, name, item_code, item_name, item_group, synced',
+      customers: '++id, name, customer_name, mobile_no, synced',
+      warehouses: '++id, name, warehouse_name',
+      invoices: '++id, offline_id, name, customer, posting_date, status, synced, is_return, return_against, created_at',
+      stockBalance: '++id, [item_code+warehouse], item_code, warehouse',
+      stockEntries: '++id, offline_id, name, stock_entry_type, synced, created_at',
+      syncQueue: '++id, offline_id, doctype, status, created_at',
+      posProfiles: '++id, name',
+      paymentMethods: '++id, name',
+      settings: '++id, &key'
+    });
   }
 
   // Helper methods for common operations
