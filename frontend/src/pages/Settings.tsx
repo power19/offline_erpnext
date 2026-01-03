@@ -178,8 +178,8 @@ export default function SettingsPage() {
             className="input"
           >
             <option value="">Select warehouse</option>
-            {warehouses?.map((w) => (
-              <option key={w.name} value={w.name}>
+            {warehouses?.map((w, idx) => (
+              <option key={w.id ?? `${w.name}-${idx}`} value={w.name}>
                 {w.warehouse_name}
               </option>
             ))}
@@ -197,8 +197,8 @@ export default function SettingsPage() {
             className="input"
           >
             <option value="">Select profile</option>
-            {posProfiles?.map((p) => (
-              <option key={p.name} value={p.name}>
+            {posProfiles?.map((p, idx) => (
+              <option key={p.id ?? `${p.name}-${idx}`} value={p.name}>
                 {p.name}
               </option>
             ))}

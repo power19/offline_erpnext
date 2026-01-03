@@ -491,8 +491,8 @@ function PaymentModal({
             className="input"
           >
             {paymentModes && paymentModes.length > 0 ? (
-              paymentModes.map((pm) => (
-                <option key={pm.name} value={pm.name}>
+              paymentModes.map((pm, idx) => (
+                <option key={pm.id ?? `${pm.name}-${idx}`} value={pm.name}>
                   {pm.name}
                 </option>
               ))

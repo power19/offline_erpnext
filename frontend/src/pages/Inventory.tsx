@@ -180,8 +180,8 @@ function StockCheckTab({
           className="input w-48"
         >
           <option value="">All Warehouses</option>
-          {warehouses.map((w) => (
-            <option key={w.name} value={w.name}>
+          {warehouses.map((w, idx) => (
+            <option key={w.id ?? `${w.name}-${idx}`} value={w.name}>
               {w.warehouse_name}
             </option>
           ))}
@@ -609,8 +609,8 @@ function TransferStockTab({
               <option value="">Select destination</option>
               {warehouses
                 .filter((w) => w.name !== fromWarehouse)
-                .map((w) => (
-                  <option key={w.name} value={w.name}>
+                .map((w, idx) => (
+                  <option key={w.id ?? `${w.name}-${idx}`} value={w.name}>
                     {w.warehouse_name}
                   </option>
                 ))}
