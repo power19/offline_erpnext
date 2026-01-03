@@ -9,10 +9,49 @@ import InvoicesPage from './pages/Invoices';
 import SettingsPage from './pages/Settings';
 import SetupPage from './pages/Setup';
 
+// Restore backend config from IndexedDB
+async function restoreBackendConfig() {
+  try {
+    const url = await db.getSetting('erpnext_url');
+    const apiKey = await db.getSetting('erpnext_api_key');
+    const apiSecret = await db.getSetting('erpnext_api_secret');
+
+    if (url) {
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          api_key: apiKey || '',
+          api_secret: apiSecret || ''
+        })
+      });
+      console.log('Backend config restored from IndexedDB');
+    }
+  } catch (error) {
+    console.error('Failed to restore backend config:', error);
+  }
+}
+
 function App() {
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
   const location = useLocation();
 
+  useEffect(() => {
+    const checkSetup = async () => {
+      const setupComplete = await db.getSetting('setup_complete');
+      const isComplete = setupComplete === 'true';
+      setIsSetupComplete(isComplete);
+
+      // Restore backend config if setup is complete
+      if (isComplete) {
+        await restoreBackendConfig();
+      }
+    };
+    checkSetup();
+  }, []);
+
+  // Re-check setup on route change (but don't restore config again)
   useEffect(() => {
     const checkSetup = async () => {
       const setupComplete = await db.getSetting('setup_complete');
