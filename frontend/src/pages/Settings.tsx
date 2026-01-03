@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -12,13 +12,15 @@ import {
   Database,
   Server,
   CheckCircle,
-  ExternalLink
+  ExternalLink,
+  Shield
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../services/database';
 import { syncService } from '../services/sync';
 import { useSync } from '../hooks/useSync';
 import { useCartStore } from '../store';
+import { useAuthStore } from '../store/auth';
 import { formatRelativeTime, formatDateTime } from '../utils/format';
 
 export default function SettingsPage() {
@@ -26,6 +28,7 @@ export default function SettingsPage() {
   const { isOnline, isSyncing, pendingSyncCount, lastSyncTime, sync, pullData, retryFailed } =
     useSync();
   const { warehouse, posProfile, setWarehouse, setPosProfile } = useCartStore();
+  const { user, isAdmin } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [erpnextUrl, setErpnextUrl] = useState<string | null>(null);
@@ -51,8 +54,27 @@ export default function SettingsPage() {
     return { items, customers, warehouses, invoices, pending };
   }, []);
 
-  const warehouses = useLiveQuery(() => db.warehouses.toArray(), [], []);
-  const posProfiles = useLiveQuery(() => db.posProfiles.toArray(), [], []);
+  const allWarehouses = useLiveQuery(() => db.warehouses.toArray(), [], []);
+  const allPosProfiles = useLiveQuery(() => db.posProfiles.toArray(), [], []);
+
+  // Filter warehouses and profiles based on user permissions
+  const warehouses = useMemo(() => {
+    if (!allWarehouses) return [];
+    if (isAdmin()) return allWarehouses;
+
+    // Staff only sees allowed warehouses
+    const allowedWarehouses = user?.allowed_warehouses || [];
+    return allWarehouses.filter(w => allowedWarehouses.includes(w.name));
+  }, [allWarehouses, user, isAdmin]);
+
+  const posProfiles = useMemo(() => {
+    if (!allPosProfiles) return [];
+    if (isAdmin()) return allPosProfiles;
+
+    // Staff only sees allowed profiles
+    const allowedProfiles = user?.pos_profiles.map(p => p.name) || [];
+    return allPosProfiles.filter(p => allowedProfiles.includes(p.name));
+  }, [allPosProfiles, user, isAdmin]);
 
   const handleRefreshData = async () => {
     if (!isOnline) {
@@ -106,30 +128,57 @@ export default function SettingsPage() {
     <div className="p-4 max-w-2xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
 
-      {/* ERPNext Connection */}
+      {/* User Info */}
       <div className="card p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-              <Server className="text-primary-600" size={20} />
-            </div>
-            <div>
-              <div className="font-medium">ERPNext Connection</div>
-              <div className="text-sm text-gray-500 truncate max-w-[200px]">
-                {erpnextUrl || 'Not configured'}
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+            isAdmin() ? 'bg-purple-100' : 'bg-primary-100'
+          }`}>
+            <Shield className={isAdmin() ? 'text-purple-600' : 'text-primary-600'} size={20} />
+          </div>
+          <div className="flex-1">
+            <div className="font-medium">{user?.full_name}</div>
+            <div className="text-sm text-gray-500">{user?.email || user?.username}</div>
+          </div>
+          <span className={`text-xs px-2 py-1 rounded-full ${
+            isAdmin() ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+          }`}>
+            {user?.role}
+          </span>
+        </div>
+        {!isAdmin() && user?.pos_profiles && user.pos_profiles.length > 0 && (
+          <div className="mt-3 pt-3 border-t text-sm text-gray-500">
+            Assigned profiles: {user.pos_profiles.map(p => p.name).join(', ')}
+          </div>
+        )}
+      </div>
+
+      {/* ERPNext Connection - Admin only */}
+      {isAdmin() && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                <Server className="text-primary-600" size={20} />
+              </div>
+              <div>
+                <div className="font-medium">ERPNext Connection</div>
+                <div className="text-sm text-gray-500 truncate max-w-[200px]">
+                  {erpnextUrl || 'Not configured'}
+                </div>
               </div>
             </div>
-          </div>
 
-          <button
-            onClick={() => navigate('/setup')}
-            className="btn btn-secondary btn-sm"
-          >
-            <ExternalLink size={16} className="mr-1" />
-            Configure
-          </button>
+            <button
+              onClick={() => navigate('/setup')}
+              className="btn btn-secondary btn-sm"
+            >
+              <ExternalLink size={16} className="mr-1" />
+              Configure
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Connection status */}
       <div className="card p-4">

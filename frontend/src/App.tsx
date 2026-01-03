@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { db } from './services/database';
+import { useAuthStore } from './store/auth';
 import Layout from './components/Layout';
 import POSPage from './pages/POS';
 import ReturnsPage from './pages/Returns';
@@ -8,6 +9,7 @@ import InventoryPage from './pages/Inventory';
 import InvoicesPage from './pages/Invoices';
 import SettingsPage from './pages/Settings';
 import SetupPage from './pages/Setup';
+import LoginPage from './pages/Login';
 
 // Restore backend config from IndexedDB
 async function restoreBackendConfig() {
@@ -36,9 +38,11 @@ async function restoreBackendConfig() {
 function App() {
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
   const location = useLocation();
+  const { isAuthenticated, isLoading, restoreSession } = useAuthStore();
 
   useEffect(() => {
-    const checkSetup = async () => {
+    const initialize = async () => {
+      // Check setup status
       const setupComplete = await db.getSetting('setup_complete');
       const isComplete = setupComplete === 'true';
       setIsSetupComplete(isComplete);
@@ -46,10 +50,12 @@ function App() {
       // Restore backend config if setup is complete
       if (isComplete) {
         await restoreBackendConfig();
+        // Restore user session
+        await restoreSession();
       }
     };
-    checkSetup();
-  }, []);
+    initialize();
+  }, [restoreSession]);
 
   // Re-check setup on route change (but don't restore config again)
   useEffect(() => {
@@ -60,8 +66,8 @@ function App() {
     checkSetup();
   }, [location.pathname]);
 
-  // Show loading while checking setup status
-  if (isSetupComplete === null) {
+  // Show loading while checking setup status and auth
+  if (isSetupComplete === null || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
@@ -74,11 +80,31 @@ function App() {
       {/* Setup page - always accessible */}
       <Route path="/setup" element={<SetupPage />} />
 
-      {/* Protected routes - require setup */}
+      {/* Login page - accessible after setup but before auth */}
+      <Route
+        path="/login"
+        element={
+          !isSetupComplete ? (
+            <Navigate to="/setup" replace />
+          ) : isAuthenticated ? (
+            <Navigate to="/pos" replace />
+          ) : (
+            <LoginPage />
+          )
+        }
+      />
+
+      {/* Protected routes - require setup AND authentication */}
       <Route
         path="/"
         element={
-          isSetupComplete ? <Layout /> : <Navigate to="/setup" replace />
+          !isSetupComplete ? (
+            <Navigate to="/setup" replace />
+          ) : !isAuthenticated ? (
+            <Navigate to="/login" replace />
+          ) : (
+            <Layout />
+          )
         }
       >
         <Route index element={<Navigate to="/pos" replace />} />

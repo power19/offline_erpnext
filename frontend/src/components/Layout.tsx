@@ -1,4 +1,5 @@
-import { Outlet, NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   ShoppingCart,
   RotateCcw,
@@ -7,13 +8,22 @@ import {
   Settings,
   Wifi,
   WifiOff,
-  RefreshCw
+  RefreshCw,
+  User,
+  LogOut,
+  ChevronDown,
+  Shield
 } from 'lucide-react';
 import { useSync } from '../hooks/useSync';
+import { useAuthStore } from '../store/auth';
 import { formatRelativeTime } from '../utils/format';
+import toast from 'react-hot-toast';
 
 export default function Layout() {
+  const navigate = useNavigate();
   const { isOnline, isSyncing, pendingSyncCount, lastSyncTime, sync } = useSync();
+  const { user, logout, isAdmin } = useAuthStore();
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const navItems = [
     { to: '/pos', icon: ShoppingCart, label: 'POS' },
@@ -22,6 +32,12 @@ export default function Layout() {
     { to: '/invoices', icon: FileText, label: 'Invoices' },
     { to: '/settings', icon: Settings, label: 'Settings' }
   ];
+
+  const handleLogout = async () => {
+    await logout();
+    toast.success('Logged out successfully');
+    navigate('/login');
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -59,6 +75,57 @@ export default function Layout() {
             >
               {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
               <span className="hidden sm:inline">{isOnline ? 'Online' : 'Offline'}</span>
+            </div>
+
+            {/* User menu */}
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100"
+              >
+                <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                  {isAdmin() ? (
+                    <Shield size={16} className="text-primary-600" />
+                  ) : (
+                    <User size={16} className="text-primary-600" />
+                  )}
+                </div>
+                <span className="hidden md:inline text-sm font-medium">
+                  {user?.full_name || user?.username}
+                </span>
+                <ChevronDown size={16} className="text-gray-400" />
+              </button>
+
+              {showUserMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowUserMenu(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-lg border z-20">
+                    <div className="p-3 border-b">
+                      <div className="font-medium">{user?.full_name}</div>
+                      <div className="text-sm text-gray-500">{user?.email || user?.username}</div>
+                      <div className="mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          isAdmin() ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {user?.role}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-2">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        <LogOut size={18} />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
