@@ -66,6 +66,7 @@ class PullResponse(BaseModel):
     warehouses: List[Dict[str, Any]] = []
     pos_profiles: List[Dict[str, Any]] = []
     payment_methods: List[Dict[str, Any]] = []
+    stock_balance: List[Dict[str, Any]] = []
     last_modified: datetime
     has_more: bool = False
 

@@ -99,7 +99,7 @@ export default function SetupPage() {
       setSyncStatus('Pulling items from ERPNext...');
       try {
         const data = await api.pullData(
-          ['Item', 'Customer', 'Warehouse', 'POS Profile', 'Mode of Payment']
+          ['Item', 'Customer', 'Warehouse', 'POS Profile', 'Mode of Payment', 'Bin']
         );
 
         // Save to IndexedDB
@@ -130,11 +130,23 @@ export default function SetupPage() {
           await db.paymentMethods.bulkPut(data.payment_methods);
         }
 
+        if (data.stock_balance?.length > 0) {
+          setSyncStatus(`Saving ${data.stock_balance.length} stock entries...`);
+          await db.stockBalance.clear();
+          await db.stockBalance.bulkPut(
+            data.stock_balance.map((s: Record<string, unknown>) => ({
+              ...s,
+              available_qty: (s.actual_qty as number || 0) - (s.reserved_qty as number || 0)
+            }))
+          );
+        }
+
         await db.setSetting('lastSync', new Date().toISOString());
 
         const itemCount = data.items?.length || 0;
         const customerCount = data.customers?.length || 0;
-        toast.success(`Synced ${itemCount} items, ${customerCount} customers!`);
+        const stockCount = data.stock_balance?.length || 0;
+        toast.success(`Synced ${itemCount} items, ${customerCount} customers, ${stockCount} stock entries!`);
       } catch (syncError) {
         console.error('Sync error:', syncError);
         toast.error('Could not pull data. You can sync later from Settings.');

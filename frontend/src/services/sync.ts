@@ -182,7 +182,7 @@ class SyncService {
     const lastSync = await db.getSetting('lastSync');
 
     const data = await api.pullData(
-      ['Item', 'Customer', 'Warehouse', 'POS Profile', 'Mode of Payment'],
+      ['Item', 'Customer', 'Warehouse', 'POS Profile', 'Mode of Payment', 'Bin'],
       lastSync
     );
 
@@ -209,6 +209,17 @@ class SyncService {
 
     if (data.payment_methods?.length > 0) {
       await db.paymentMethods.bulkPut(data.payment_methods);
+    }
+
+    if (data.stock_balance?.length > 0) {
+      // Clear old stock data and add new
+      await db.stockBalance.clear();
+      await db.stockBalance.bulkPut(
+        data.stock_balance.map((s: Record<string, unknown>) => ({
+          ...s,
+          available_qty: (s.actual_qty as number || 0) - (s.reserved_qty as number || 0)
+        }))
+      );
     }
 
     await db.setSetting('lastSync', new Date().toISOString());

@@ -171,19 +171,40 @@ class ERPNextClient:
         item_code: Optional[str] = None,
         warehouse: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Get stock balance for items."""
+        """Get stock balance for items with item names."""
         filters = {}
         if item_code:
             filters["item_code"] = item_code
         if warehouse:
             filters["warehouse"] = warehouse
 
-        return self.get_list(
+        bins = self.get_list(
             "Bin",
             fields=["item_code", "warehouse", "actual_qty", "reserved_qty", "projected_qty"],
             filters=filters,
-            limit_page_length=1000
+            limit_page_length=5000
         )
+
+        # Fetch item names for all items
+        if bins:
+            try:
+                item_codes = list(set(b["item_code"] for b in bins))
+                items = self.get_list(
+                    "Item",
+                    fields=["item_code", "item_name"],
+                    filters={"item_code": ["in", item_codes]},
+                    limit_page_length=5000
+                )
+                item_name_map = {i["item_code"]: i["item_name"] for i in items}
+
+                for b in bins:
+                    b["item_name"] = item_name_map.get(b["item_code"], b["item_code"])
+            except Exception as e:
+                logger.warning(f"Could not fetch item names for stock: {e}")
+                for b in bins:
+                    b["item_name"] = b["item_code"]
+
+        return bins
 
     def get_warehouses(self, company: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get list of warehouses."""

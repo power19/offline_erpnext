@@ -141,6 +141,11 @@ async def pull_data(
             payment_methods = client.get_payment_methods()
             response.payment_methods = payment_methods
 
+        # Fetch stock balance (Bin)
+        if "Bin" in request.doctypes or "Stock" in request.doctypes:
+            stock_balance = client.get_stock_balance()
+            response.stock_balance = stock_balance
+
         return response
 
     except Exception as e:
