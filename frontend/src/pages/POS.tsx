@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Search, Plus, Minus, Trash2, User, Percent, DollarSign, X, MapPin } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, User, Percent, DollarSign, X, MapPin, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../services/database';
 import { syncService } from '../services/sync';
@@ -14,6 +14,7 @@ export default function POSPage() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
   const {
@@ -31,12 +32,14 @@ export default function POSPage() {
     clearPayments,
     setItemDiscount,
     getSubtotal,
+    getItemDiscountTotal,
     getCartDiscount,
     getTotal,
     getTotalPaid,
     getBalance,
     warehouse,
-    posProfile
+    posProfile,
+    discount
   } = useCartStore();
 
   // Search items from IndexedDB
@@ -302,14 +305,24 @@ export default function POSPage() {
             <span>{formatCurrency(getSubtotal())}</span>
           </div>
 
+          {getItemDiscountTotal() > 0 && (
+            <div className="flex justify-between text-sm text-green-600">
+              <span>Item Discounts</span>
+              <span>-{formatCurrency(getItemDiscountTotal())}</span>
+            </div>
+          )}
+
           {getCartDiscount() > 0 && (
             <div className="flex justify-between text-sm text-green-600">
-              <span>Discount</span>
+              <span>
+                Cart Discount
+                {discount?.type === 'percentage' && ` (${discount.value}%)`}
+              </span>
               <span>-{formatCurrency(getCartDiscount())}</span>
             </div>
           )}
 
-          <div className="flex justify-between text-lg font-bold">
+          <div className="flex justify-between text-lg font-bold border-t pt-2">
             <span>Total</span>
             <span>{formatCurrency(getTotal())}</span>
           </div>
@@ -349,13 +362,22 @@ export default function POSPage() {
               Payment
             </button>
           </div>
-          <button
-            onClick={handleCheckout}
-            disabled={cartItems.length === 0}
-            className="btn btn-primary w-full btn-lg"
-          >
-            Complete Sale
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowPrintPreview(true)}
+              disabled={cartItems.length === 0}
+              className="btn btn-secondary"
+            >
+              <Printer size={18} />
+            </button>
+            <button
+              onClick={handleCheckout}
+              disabled={cartItems.length === 0}
+              className="btn btn-primary flex-1 btn-lg"
+            >
+              Complete Sale
+            </button>
+          </div>
         </div>
       </div>
 
@@ -419,6 +441,23 @@ export default function POSPage() {
             setShowDiscountModal(false);
             setSelectedItem(null);
           }}
+        />
+      )}
+
+      {/* Print Preview Modal */}
+      {showPrintPreview && (
+        <PrintPreviewModal
+          customer={customer}
+          items={cartItems}
+          subtotal={getSubtotal()}
+          itemDiscountTotal={getItemDiscountTotal()}
+          cartDiscount={getCartDiscount()}
+          cartDiscountInfo={discount}
+          total={getTotal()}
+          payments={payments}
+          posProfile={posProfile}
+          warehouse={warehouse}
+          onClose={() => setShowPrintPreview(false)}
         />
       )}
     </div>
@@ -631,5 +670,207 @@ function DiscountModal({
         </button>
       </div>
     </Modal>
+  );
+}
+
+// Print Preview Modal
+function PrintPreviewModal({
+  customer,
+  items,
+  subtotal,
+  itemDiscountTotal,
+  cartDiscount,
+  cartDiscountInfo,
+  total,
+  payments,
+  posProfile,
+  warehouse,
+  onClose
+}: {
+  customer: Customer | null;
+  items: CartItem[];
+  subtotal: number;
+  itemDiscountTotal: number;
+  cartDiscount: number;
+  cartDiscountInfo: Discount | null;
+  total: number;
+  payments: { mode_of_payment: string; amount: number }[];
+  posProfile: any;
+  warehouse: any;
+  onClose: () => void;
+}) {
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = () => {
+    const printContent = printRef.current;
+    if (!printContent) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Please allow popups for printing');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Receipt</title>
+          <style>
+            body {
+              font-family: 'Courier New', monospace;
+              padding: 10px;
+              font-size: 12px;
+              max-width: 300px;
+              margin: 0 auto;
+            }
+            .header { text-align: center; margin-bottom: 10px; }
+            .header h2 { margin: 0; font-size: 16px; }
+            .header p { margin: 2px 0; font-size: 11px; }
+            .divider { border-top: 1px dashed #000; margin: 8px 0; }
+            .items { margin: 10px 0; }
+            .item { display: flex; justify-content: space-between; margin: 4px 0; }
+            .item-name { flex: 1; }
+            .item-qty { width: 50px; text-align: center; }
+            .item-amount { width: 70px; text-align: right; }
+            .totals { margin-top: 10px; }
+            .total-row { display: flex; justify-content: space-between; margin: 3px 0; }
+            .grand-total { font-weight: bold; font-size: 14px; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
+            .footer { text-align: center; margin-top: 15px; font-size: 11px; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          ${printContent.innerHTML}
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+  const currentDate = new Date();
+  const dateStr = currentDate.toLocaleDateString();
+  const timeStr = currentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-bold">Print Preview</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Receipt Preview */}
+        <div className="flex-1 overflow-auto p-4">
+          <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm" ref={printRef}>
+            {/* Header */}
+            <div className="header">
+              <h2>{posProfile?.company || 'Company Name'}</h2>
+              {posProfile?.letter_head && <p>{posProfile.letter_head}</p>}
+              {warehouse && <p>{warehouse.warehouse_name || warehouse.name}</p>}
+              <p>{dateStr} {timeStr}</p>
+            </div>
+
+            <div className="divider"></div>
+
+            {/* Customer */}
+            {customer && (
+              <>
+                <p><strong>Customer:</strong> {customer.customer_name}</p>
+                {customer.mobile_no && <p>Phone: {customer.mobile_no}</p>}
+                <div className="divider"></div>
+              </>
+            )}
+
+            {/* Items */}
+            <div className="items">
+              {items.map((item, idx) => (
+                <div key={idx}>
+                  <div className="item">
+                    <span className="item-name">{item.item_name}</span>
+                  </div>
+                  <div className="item">
+                    <span className="item-qty">{item.qty} x {formatCurrency(item.rate)}</span>
+                    <span className="item-amount">{formatCurrency(item.amount)}</span>
+                  </div>
+                  {(item.discount_percentage > 0 || item.discount_amount > 0) && (
+                    <div className="item" style={{ color: '#16a34a', fontSize: '11px' }}>
+                      <span>Discount: {item.discount_percentage > 0 ? `${item.discount_percentage}%` : formatCurrency(item.discount_amount)}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="divider"></div>
+
+            {/* Totals */}
+            <div className="totals">
+              <div className="total-row">
+                <span>Subtotal:</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              {itemDiscountTotal > 0 && (
+                <div className="total-row" style={{ color: '#16a34a' }}>
+                  <span>Item Discounts:</span>
+                  <span>-{formatCurrency(itemDiscountTotal)}</span>
+                </div>
+              )}
+              {cartDiscount > 0 && (
+                <div className="total-row" style={{ color: '#16a34a' }}>
+                  <span>Cart Discount{cartDiscountInfo?.type === 'percentage' ? ` (${cartDiscountInfo.value}%)` : ''}:</span>
+                  <span>-{formatCurrency(cartDiscount)}</span>
+                </div>
+              )}
+              <div className="total-row grand-total">
+                <span>TOTAL:</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
+            </div>
+
+            {/* Payments */}
+            {payments.length > 0 && (
+              <>
+                <div className="divider"></div>
+                <div className="totals">
+                  {payments.map((p, idx) => (
+                    <div key={idx} className="total-row">
+                      <span>{p.mode_of_payment}:</span>
+                      <span>{formatCurrency(p.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Footer */}
+            <div className="divider"></div>
+            <div className="footer">
+              <p>Thank you for your purchase!</p>
+              {posProfile?.print_format && <p>Format: {posProfile.print_format}</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="p-4 border-t flex gap-2">
+          <button onClick={onClose} className="btn btn-secondary flex-1">
+            Close
+          </button>
+          <button onClick={handlePrint} className="btn btn-primary flex-1">
+            <Printer size={18} className="mr-2" />
+            Print
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

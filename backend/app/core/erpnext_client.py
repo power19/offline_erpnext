@@ -373,10 +373,13 @@ class ERPNextClient:
     # ========== POS Profile & Settings ==========
 
     def get_pos_profiles(self) -> List[Dict[str, Any]]:
-        """Get available POS profiles."""
+        """Get available POS profiles with print settings."""
         return self.get_list(
             "POS Profile",
-            fields=["name", "warehouse", "company", "currency", "selling_price_list"],
+            fields=[
+                "name", "warehouse", "company", "currency", "selling_price_list",
+                "print_format", "letter_head", "tc_name", "customer"
+            ],
             filters={"disabled": 0},
             limit_page_length=20
         )

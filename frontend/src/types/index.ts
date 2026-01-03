@@ -145,6 +145,11 @@ export interface POSProfile {
   company?: string;
   currency?: string;
   selling_price_list?: string;
+  // Print settings
+  print_format?: string;
+  letter_head?: string;
+  tc_name?: string;  // Terms and Conditions
+  customer?: string;  // Default customer (Walk-in)
 }
 
 // Payment Method
