@@ -64,12 +64,8 @@ async def login(request: LoginRequest):
             )
             logged_user = user_response.json().get("message", request.username)
 
-            # Get user's full details using admin API
-            client = ERPNextClient(
-                runtime_config.erpnext_url,
-                runtime_config.erpnext_api_key,
-                runtime_config.erpnext_api_secret
-            )
+            # Get user's full details using admin API (uses runtime_config automatically)
+            client = ERPNextClient()
 
             # Get user document
             try:
