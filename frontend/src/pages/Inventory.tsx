@@ -114,6 +114,16 @@ function StockCheckTab({
     []
   );
 
+  // Search suggestions for items
+  const itemSuggestions = useLiveQuery(
+    async () => {
+      if (!searchQuery || searchQuery.length < 2) return [];
+      return db.searchItems(searchQuery);
+    },
+    [searchQuery],
+    []
+  );
+
   const handleSearch = async () => {
     if (!searchQuery && !selectedWarehouse) {
       setStockData(localStock || []);
@@ -164,7 +174,7 @@ function StockCheckTab({
       {/* Search */}
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={20} />
           <input
             type="text"
             placeholder="Search item..."
@@ -173,6 +183,24 @@ function StockCheckTab({
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             className="input pl-10"
           />
+          {/* Autocomplete suggestions */}
+          {itemSuggestions && itemSuggestions.length > 0 && (
+            <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-lg border max-h-48 overflow-auto">
+              {itemSuggestions.map((item) => (
+                <button
+                  key={item.item_code}
+                  onClick={() => {
+                    setSearchQuery(item.item_code);
+                    handleSearch();
+                  }}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-50 border-b last:border-b-0"
+                >
+                  <div className="font-medium">{item.item_name}</div>
+                  <div className="text-sm text-gray-500">{item.item_code}</div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <select
           value={selectedWarehouse}
