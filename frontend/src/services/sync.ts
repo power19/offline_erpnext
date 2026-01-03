@@ -287,18 +287,61 @@ class SyncService {
       }
     }
 
-    // Queue for sync
-    await this.queueForSync('POS Invoice', 'create', {
-      customer: invoice.customer,
-      items: invoice.items,
-      payments: invoice.payments,
-      discount_amount: invoice.discount_amount,
-      additional_discount_percentage: invoice.additional_discount_percentage,
-      is_return: invoice.is_return,
-      return_against: invoice.return_against
-    }, offlineId);
+    // Try to sync immediately if online
+    let erpnextName: string | undefined;
+    if (navigator.onLine) {
+      try {
+        const result = await api.createInvoice({
+          customer: invoice.customer,
+          items: invoice.items.map(i => ({
+            item_code: i.item_code,
+            qty: i.qty,
+            rate: i.rate,
+            discount_percentage: i.discount_percentage,
+            discount_amount: i.discount_amount
+          })),
+          payments: invoice.payments,
+          discount_amount: invoice.discount_amount,
+          additional_discount_percentage: invoice.additional_discount_percentage,
+          offline_id: offlineId
+        });
 
-    return { ...newInvoice, id };
+        if (result.success && result.data?.name) {
+          erpnextName = result.data.name;
+          // Update local invoice with ERPNext name
+          await db.invoices.update(id, {
+            name: erpnextName,
+            synced: true,
+            synced_at: new Date()
+          });
+        }
+      } catch (error) {
+        console.log('Could not sync immediately, queuing for later:', error);
+        // Queue for sync if immediate sync fails
+        await this.queueForSync('POS Invoice', 'create', {
+          customer: invoice.customer,
+          items: invoice.items,
+          payments: invoice.payments,
+          discount_amount: invoice.discount_amount,
+          additional_discount_percentage: invoice.additional_discount_percentage,
+          is_return: invoice.is_return,
+          return_against: invoice.return_against
+        }, offlineId);
+      }
+    } else {
+      // Queue for sync when offline
+      await this.queueForSync('POS Invoice', 'create', {
+        customer: invoice.customer,
+        items: invoice.items,
+        payments: invoice.payments,
+        discount_amount: invoice.discount_amount,
+        additional_discount_percentage: invoice.additional_discount_percentage,
+        is_return: invoice.is_return,
+        return_against: invoice.return_against
+      }, offlineId);
+    }
+
+    return { ...newInvoice, id, name: erpnextName, synced: !!erpnextName };
   }
 
   // Create stock entry (with offline support)
