@@ -3,10 +3,9 @@ ERPNext API Client for interacting with ERPNext backend.
 """
 import requests
 from typing import Any, Dict, List, Optional
-from functools import lru_cache
 import logging
 
-from app.core.config import settings
+from app.core.config import settings, runtime_config
 
 logger = logging.getLogger(__name__)
 
@@ -15,18 +14,18 @@ class ERPNextClient:
     """Client for ERPNext REST API interactions."""
 
     def __init__(self):
-        self.base_url = settings.erpnext_url.rstrip("/")
-        self.api_key = settings.erpnext_api_key
-        self.api_secret = settings.erpnext_api_secret
         self.session = requests.Session()
-        self._setup_auth()
 
-    def _setup_auth(self):
-        """Setup authentication headers."""
-        if self.api_key and self.api_secret:
-            self.session.headers.update({
-                "Authorization": f"token {self.api_key}:{self.api_secret}"
-            })
+    def _get_base_url(self) -> str:
+        """Get base URL from runtime config."""
+        return runtime_config.erpnext_url.rstrip("/") if runtime_config.erpnext_url else ""
+
+    def _get_headers(self) -> Dict[str, str]:
+        """Get auth headers from runtime config."""
+        headers = {}
+        if runtime_config.erpnext_api_key and runtime_config.erpnext_api_secret:
+            headers["Authorization"] = f"token {runtime_config.erpnext_api_key}:{runtime_config.erpnext_api_secret}"
+        return headers
 
     def _make_request(
         self,
@@ -36,7 +35,11 @@ class ERPNextClient:
         params: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """Make HTTP request to ERPNext API."""
-        url = f"{self.base_url}{endpoint}"
+        base_url = self._get_base_url()
+        if not base_url:
+            raise Exception("ERPNext not configured. Please complete setup.")
+
+        url = f"{base_url}{endpoint}"
 
         try:
             response = self.session.request(
@@ -44,6 +47,7 @@ class ERPNextClient:
                 url=url,
                 json=data,
                 params=params,
+                headers=self._get_headers(),
                 timeout=30
             )
             response.raise_for_status()
@@ -362,7 +366,6 @@ class ERPNextClient:
         )
 
 
-@lru_cache()
 def get_erpnext_client() -> ERPNextClient:
-    """Get cached ERPNext client instance."""
+    """Get ERPNext client instance."""
     return ERPNextClient()

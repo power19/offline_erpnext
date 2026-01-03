@@ -4,11 +4,6 @@ import os
 
 
 class Settings(BaseSettings):
-    # ERPNext Configuration
-    erpnext_url: str = ""
-    erpnext_api_key: str = ""
-    erpnext_api_secret: str = ""
-
     # App Configuration
     debug: bool = True
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
@@ -28,4 +23,18 @@ class Settings(BaseSettings):
         case_sensitive = False
 
 
+class RuntimeConfig:
+    """Runtime configuration that can be updated via API."""
+
+    def __init__(self):
+        self.erpnext_url: str = ""
+        self.erpnext_api_key: str = ""
+        self.erpnext_api_secret: str = ""
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.erpnext_url)
+
+
 settings = Settings()
+runtime_config = RuntimeConfig()

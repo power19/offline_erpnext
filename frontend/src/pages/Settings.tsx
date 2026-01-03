@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Settings as SettingsIcon,
@@ -10,7 +11,8 @@ import {
   WifiOff,
   Database,
   Server,
-  CheckCircle
+  CheckCircle,
+  ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../services/database';
@@ -20,11 +22,22 @@ import { useCartStore } from '../store';
 import { formatRelativeTime, formatDateTime } from '../utils/format';
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const { isOnline, isSyncing, pendingSyncCount, lastSyncTime, sync, pullData, retryFailed } =
     useSync();
   const { warehouse, posProfile, setWarehouse, setPosProfile } = useCartStore();
   const [refreshing, setRefreshing] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [erpnextUrl, setErpnextUrl] = useState<string | null>(null);
+
+  // Load ERPNext URL from settings
+  useEffect(() => {
+    const loadUrl = async () => {
+      const url = await db.getSetting('erpnext_url');
+      setErpnextUrl(url || null);
+    };
+    loadUrl();
+  }, []);
 
   // Get data counts
   const counts = useLiveQuery(async () => {
@@ -92,6 +105,31 @@ export default function SettingsPage() {
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
+
+      {/* ERPNext Connection */}
+      <div className="card p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+              <Server className="text-primary-600" size={20} />
+            </div>
+            <div>
+              <div className="font-medium">ERPNext Connection</div>
+              <div className="text-sm text-gray-500 truncate max-w-[200px]">
+                {erpnextUrl || 'Not configured'}
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate('/setup')}
+            className="btn btn-secondary btn-sm"
+          >
+            <ExternalLink size={16} className="mr-1" />
+            Configure
+          </button>
+        </div>
+      </div>
 
       {/* Connection status */}
       <div className="card p-4">
