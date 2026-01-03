@@ -16,6 +16,7 @@ export default function POSPage() {
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [erpnextUrl, setErpnextUrl] = useState('');
 
   const {
     items: cartItems,
@@ -63,6 +64,27 @@ export default function POSPage() {
 
   // Get all items for display
   const allItems = useLiveQuery(() => db.items.limit(50).toArray(), [], []);
+
+  // Load ERPNext URL for images
+  useEffect(() => {
+    db.getSetting('erpnext_url').then(url => {
+      if (url) setErpnextUrl(url);
+    });
+  }, []);
+
+  // Helper to get full image URL
+  const getImageUrl = (imagePath?: string): string | null => {
+    if (!imagePath) return null;
+    // If already a full URL, return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    // Prepend ERPNext URL for relative paths
+    if (erpnextUrl && imagePath.startsWith('/')) {
+      return `${erpnextUrl}${imagePath}`;
+    }
+    return imagePath;
+  };
 
   // Helper to get item price with fallback
   const getItemPrice = (item: Item): number => {
@@ -193,8 +215,8 @@ export default function POSPage() {
                 className="card p-3 text-left hover:shadow-md transition-shadow"
               >
                 <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
-                  {item.image ? (
-                    <img src={item.image} alt={item.item_name} className="w-full h-full object-cover" />
+                  {getImageUrl(item.image) ? (
+                    <img src={getImageUrl(item.image)!} alt={item.item_name} className="w-full h-full object-cover" />
                   ) : (
                     <Package className="text-gray-400" size={32} />
                   )}
