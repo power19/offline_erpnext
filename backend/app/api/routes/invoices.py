@@ -163,6 +163,133 @@ async def create_invoice(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/draft", response_model=dict)
+async def create_draft_invoice(
+    invoice: POSInvoiceCreate,
+    client: ERPNextClient = Depends(get_erpnext_client)
+):
+    """
+    Create a draft POS Invoice for preview.
+    The invoice is NOT submitted (docstatus=0).
+    """
+    try:
+        # Prepare items
+        items = []
+        for item in invoice.items:
+            item_data = {
+                "item_code": item.item_code,
+                "qty": item.qty,
+                "rate": item.rate,
+                "uom": item.uom
+            }
+            if item.discount_percentage > 0:
+                item_data["discount_percentage"] = item.discount_percentage
+            if item.discount_amount > 0:
+                item_data["discount_amount"] = item.discount_amount
+            if item.warehouse:
+                item_data["warehouse"] = item.warehouse
+            items.append(item_data)
+
+        # Prepare payments
+        payments = [
+            {"mode_of_payment": p.mode_of_payment, "amount": p.amount}
+            for p in invoice.payments
+        ]
+
+        # Create draft (docstatus=0 by default when using create_doc)
+        from app.core.config import settings
+        data = {
+            "doctype": "POS Invoice",
+            "customer": invoice.customer,
+            "company": settings.default_company,
+            "currency": settings.default_currency,
+            "selling_price_list": "Standard Selling",
+            "items": items,
+            "payments": payments,
+            "is_pos": 1,
+            "update_stock": 0,  # Don't update stock for draft
+            "docstatus": 0  # Draft
+        }
+
+        if invoice.discount_amount > 0:
+            data["discount_amount"] = invoice.discount_amount
+        if invoice.additional_discount_percentage > 0:
+            data["additional_discount_percentage"] = invoice.additional_discount_percentage
+        if invoice.pos_profile:
+            data["pos_profile"] = invoice.pos_profile
+
+        result = client.create_doc("POS Invoice", data)
+
+        return {
+            "success": True,
+            "name": result.get("data", {}).get("name"),
+            "message": "Draft invoice created"
+        }
+    except Exception as e:
+        logger.error(f"Error creating draft invoice: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{invoice_name}/submit", response_model=dict)
+async def submit_invoice(
+    invoice_name: str,
+    client: ERPNextClient = Depends(get_erpnext_client)
+):
+    """
+    Submit a draft POS Invoice.
+    Changes docstatus from 0 to 1 and updates stock.
+    """
+    try:
+        # First update to enable stock update
+        client.update_doc("POS Invoice", invoice_name, {"update_stock": 1})
+
+        # Then submit
+        result = client.submit_doc("POS Invoice", invoice_name)
+
+        return {
+            "success": True,
+            "name": invoice_name,
+            "message": "Invoice submitted successfully"
+        }
+    except Exception as e:
+        logger.error(f"Error submitting invoice {invoice_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{invoice_name}", response_model=dict)
+async def delete_invoice(
+    invoice_name: str,
+    client: ERPNextClient = Depends(get_erpnext_client)
+):
+    """
+    Delete a draft POS Invoice.
+    Only works for draft invoices (docstatus=0).
+    """
+    try:
+        # Check if it's a draft
+        invoice = client.get_doc("POS Invoice", invoice_name)
+        invoice_data = invoice.get("data", {})
+
+        if invoice_data.get("docstatus") != 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Can only delete draft invoices"
+            )
+
+        client.delete_doc("POS Invoice", invoice_name)
+
+        return {
+            "success": True,
+            "name": invoice_name,
+            "message": "Draft invoice deleted"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting invoice {invoice_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/return", response_model=dict)
 async def create_return(
     return_data: POSReturnCreate,

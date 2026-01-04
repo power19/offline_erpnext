@@ -97,6 +97,36 @@ class ApiService {
     return response.data;
   }
 
+  async createDraftInvoice(data: {
+    customer: string;
+    items: Array<{
+      item_code: string;
+      qty: number;
+      rate: number;
+      uom?: string;
+      warehouse?: string;
+      discount_percentage?: number;
+      discount_amount?: number;
+    }>;
+    payments: Array<{ mode_of_payment: string; amount: number }>;
+    discount_amount?: number;
+    additional_discount_percentage?: number;
+    pos_profile?: string;
+  }) {
+    const response = await this.client.post('/invoices/draft', data);
+    return response.data;
+  }
+
+  async submitInvoice(invoiceName: string) {
+    const response = await this.client.post(`/invoices/${invoiceName}/submit`);
+    return response.data;
+  }
+
+  async deleteInvoice(invoiceName: string) {
+    const response = await this.client.delete(`/invoices/${invoiceName}`);
+    return response.data;
+  }
+
   async getReturnableItems(invoiceName: string) {
     const response = await this.client.get(`/invoices/${invoiceName}/returnable-items`);
     return response.data;

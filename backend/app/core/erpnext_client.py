@@ -100,6 +100,14 @@ class ERPNextClient:
         """Delete a document."""
         return self._make_request("DELETE", f"/api/resource/{doctype}/{name}")
 
+    def submit_doc(self, doctype: str, name: str) -> Dict[str, Any]:
+        """Submit a document (change docstatus from 0 to 1)."""
+        return self._make_request(
+            "POST",
+            "/api/method/frappe.client.submit",
+            data={"doc": {"doctype": doctype, "name": name}}
+        )
+
     # ========== Item Operations ==========
 
     def get_items(

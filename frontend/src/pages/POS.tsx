@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Search, Plus, Minus, Trash2, User, Percent, DollarSign, X, MapPin, Printer } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, User, Percent, DollarSign, X, MapPin, Printer, Loader } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../services/database';
 import { syncService } from '../services/sync';
+import { api } from '../services/api';
 import { useCartStore } from '../store';
 import { formatCurrency, formatQty } from '../utils/format';
 import { Item, Customer, Discount, CartItem } from '../types';
@@ -19,6 +20,11 @@ export default function POSPage() {
   const [erpnextUrl, setErpnextUrl] = useState('');
   const [lastInvoice, setLastInvoice] = useState<{ name?: string; offline_id: string } | null>(null);
   const [showPrintAfterSale, setShowPrintAfterSale] = useState(false);
+
+  // Draft invoice for preview
+  const [draftInvoiceName, setDraftInvoiceName] = useState<string | null>(null);
+  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
+  const [isSubmittingDraft, setIsSubmittingDraft] = useState(false);
 
   const {
     items: cartItems,
@@ -186,6 +192,121 @@ export default function POSPage() {
 
     window.open(printUrl, '_blank');
     setShowPrintAfterSale(false);
+  };
+
+  // Create draft invoice for preview
+  const handlePreview = async () => {
+    if (!customer) {
+      toast.error('Please select a customer');
+      setShowCustomerModal(true);
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      toast.error('Cart is empty');
+      return;
+    }
+
+    if (!navigator.onLine) {
+      toast.error('Preview requires internet connection');
+      return;
+    }
+
+    setIsCreatingDraft(true);
+    setShowPreview(true);
+
+    try {
+      const result = await api.createDraftInvoice({
+        customer: customer.name,
+        items: cartItems.map(item => ({
+          item_code: item.item_code,
+          qty: item.qty,
+          rate: item.rate,
+          uom: item.uom || 'Nos',
+          warehouse: warehouse?.name,
+          discount_percentage: item.discount_percentage || 0,
+          discount_amount: item.discount_amount || 0
+        })),
+        payments: payments.length > 0 ? payments : [{ mode_of_payment: 'Cash', amount: getTotal() }],
+        discount_amount: discount?.type === 'amount' ? discount.value : 0,
+        additional_discount_percentage: discount?.type === 'percentage' ? discount.value : 0,
+        pos_profile: posProfile?.name
+      });
+
+      if (result.success && result.name) {
+        setDraftInvoiceName(result.name);
+      } else {
+        toast.error('Failed to create preview');
+        setShowPreview(false);
+      }
+    } catch (error) {
+      console.error('Error creating draft:', error);
+      toast.error('Failed to create preview');
+      setShowPreview(false);
+    } finally {
+      setIsCreatingDraft(false);
+    }
+  };
+
+  // Close preview and delete draft
+  const handleClosePreview = async () => {
+    if (draftInvoiceName) {
+      try {
+        await api.deleteInvoice(draftInvoiceName);
+      } catch (error) {
+        console.error('Error deleting draft:', error);
+      }
+    }
+    setDraftInvoiceName(null);
+    setShowPreview(false);
+  };
+
+  // Submit draft and complete sale
+  const handleSubmitDraft = async () => {
+    if (!draftInvoiceName) {
+      toast.error('No draft invoice to submit');
+      return;
+    }
+
+    setIsSubmittingDraft(true);
+    try {
+      await api.submitInvoice(draftInvoiceName);
+
+      // Save to local DB for records
+      await syncService.createInvoice({
+        offline_id: '',
+        name: draftInvoiceName,
+        customer: customer!.name,
+        customer_name: customer!.customer_name,
+        items: cartItems,
+        payments: payments.length > 0 ? payments : [{ mode_of_payment: 'Cash', amount: getTotal() }],
+        discount_amount: discount?.type === 'amount' ? discount.value : 0,
+        additional_discount_percentage: discount?.type === 'percentage' ? discount.value : 0,
+        net_total: getSubtotal() - getCartDiscount(),
+        grand_total: getTotal(),
+        paid_amount: getTotalPaid() || getTotal(),
+        outstanding_amount: 0,
+        warehouse: warehouse?.name,
+        posting_date: new Date().toISOString().split('T')[0],
+        status: 'Paid',
+        is_return: false,
+        synced: true
+      });
+
+      toast.success('Sale completed!');
+      setLastInvoice({ name: draftInvoiceName, offline_id: '' });
+      setDraftInvoiceName(null);
+      setShowPreview(false);
+      setShowPrintAfterSale(true);
+
+      clearCart();
+      clearPayments();
+    } catch (error) {
+      console.error('Error submitting draft:', error);
+      toast.error('Failed to complete sale');
+    } finally {
+      setIsSubmittingDraft(false);
+    }
   };
 
   return (
@@ -416,10 +537,10 @@ export default function POSPage() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => setShowPreview(true)}
-              disabled={cartItems.length === 0}
+              onClick={handlePreview}
+              disabled={cartItems.length === 0 || !navigator.onLine}
               className="btn btn-secondary"
-              title="Preview Receipt"
+              title={navigator.onLine ? "Preview Receipt" : "Preview requires internet"}
             >
               <Printer size={18} />
             </button>
@@ -497,116 +618,71 @@ export default function POSPage() {
         />
       )}
 
-      {/* Receipt Preview Modal (before sale) */}
+      {/* Receipt Preview Modal with ERPNext Print Format */}
       {showPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-bold">Receipt Preview</h2>
-              <button onClick={() => setShowPreview(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <div>
+                <h2 className="text-lg font-bold">Receipt Preview</h2>
+                {draftInvoiceName && (
+                  <p className="text-sm text-gray-500">Draft: {draftInvoiceName}</p>
+                )}
+              </div>
+              <button
+                onClick={handleClosePreview}
+                disabled={isCreatingDraft || isSubmittingDraft}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="flex-1 overflow-auto p-4">
-              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm space-y-2">
-                {/* Header */}
-                <div className="text-center border-b pb-2">
-                  <div className="font-bold text-base">{posProfile?.company || 'Company'}</div>
-                  <div className="text-xs">{warehouse?.name || warehouse?.warehouse_name}</div>
-                  <div className="text-xs">{new Date().toLocaleString()}</div>
+            {/* ERPNext Print Preview iframe */}
+            <div className="flex-1 min-h-0 p-4">
+              {isCreatingDraft ? (
+                <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
+                  <Loader className="animate-spin mb-4" size={40} />
+                  <p className="text-gray-500">Creating preview...</p>
                 </div>
-
-                {/* Customer */}
-                {customer && (
-                  <div className="border-b pb-2">
-                    <div><strong>Customer:</strong> {customer.customer_name}</div>
-                    {customer.mobile_no && <div className="text-xs">Tel: {customer.mobile_no}</div>}
-                  </div>
-                )}
-
-                {/* Items */}
-                <div className="border-b pb-2 space-y-1">
-                  {cartItems.map((item, idx) => {
-                    const itemTotal = item.qty * item.rate;
-                    const discountAmt = item.discount_percentage > 0
-                      ? itemTotal * (item.discount_percentage / 100)
-                      : item.discount_amount;
-                    return (
-                      <div key={idx} className="text-xs">
-                        <div className="flex justify-between">
-                          <span className="flex-1 truncate">{item.item_name}</span>
-                          <span>{formatCurrency(itemTotal - discountAmt)}</span>
-                        </div>
-                        <div className="text-gray-500 pl-2">
-                          {item.qty} x {formatCurrency(item.rate)}
-                          {discountAmt > 0 && (
-                            <span className="text-green-600 ml-2">
-                              -{item.discount_percentage > 0 ? `${item.discount_percentage}%` : formatCurrency(discountAmt)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+              ) : draftInvoiceName && erpnextUrl ? (
+                <iframe
+                  src={`${erpnextUrl}/printview?doctype=POS%20Invoice&name=${encodeURIComponent(draftInvoiceName)}&format=${encodeURIComponent(posProfile?.print_format || '')}`}
+                  className="w-full h-full min-h-[400px] border rounded-lg"
+                  title="Receipt Preview"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-gray-500">
+                  <Printer size={48} className="mb-4 opacity-50" />
+                  <p>Failed to create preview</p>
                 </div>
-
-                {/* Totals */}
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span>{formatCurrency(getSubtotal())}</span>
-                  </div>
-                  {getItemDiscountTotal() > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Item Discounts:</span>
-                      <span>-{formatCurrency(getItemDiscountTotal())}</span>
-                    </div>
-                  )}
-                  {getCartDiscount() > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount{discount?.type === 'percentage' ? ` (${discount.value}%)` : ''}:</span>
-                      <span>-{formatCurrency(getCartDiscount())}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-bold text-base border-t pt-1">
-                    <span>TOTAL:</span>
-                    <span>{formatCurrency(getTotal())}</span>
-                  </div>
-                </div>
-
-                {/* Payments */}
-                {payments.length > 0 && (
-                  <div className="border-t pt-2 space-y-1 text-xs">
-                    <div className="font-bold">Payments:</div>
-                    {payments.map((p, idx) => (
-                      <div key={idx} className="flex justify-between">
-                        <span>{p.mode_of_payment}:</span>
-                        <span>{formatCurrency(p.amount)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Footer */}
-                <div className="text-center text-xs pt-2 border-t">
-                  <div>Thank you for your purchase!</div>
-                  {posProfile?.print_format && (
-                    <div className="text-gray-400 mt-1">Format: {posProfile.print_format}</div>
-                  )}
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="p-4 border-t flex gap-2">
-              <button onClick={() => setShowPreview(false)} className="btn btn-secondary flex-1">
-                Close
+              <button
+                onClick={handleClosePreview}
+                disabled={isCreatingDraft || isSubmittingDraft}
+                className="btn btn-secondary flex-1"
+              >
+                Cancel
               </button>
               <button
-                onClick={() => { setShowPreview(false); handleCheckout(); }}
+                onClick={handleSubmitDraft}
+                disabled={!draftInvoiceName || isCreatingDraft || isSubmittingDraft}
                 className="btn btn-primary flex-1"
               >
-                Complete Sale & Print
+                {isSubmittingDraft ? (
+                  <>
+                    <Loader className="animate-spin mr-2" size={18} />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Printer size={18} className="mr-2" />
+                    Confirm & Print
+                  </>
+                )}
               </button>
             </div>
           </div>
