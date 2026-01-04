@@ -69,6 +69,8 @@ export default function SettingsPage() {
 
   const posProfiles = useMemo(() => {
     if (!allPosProfiles) return [];
+    console.log('[Settings] All POS Profiles from IndexedDB:', allPosProfiles);
+    console.log('[Settings] print_format values:', allPosProfiles.map(p => ({ name: p.name, print_format: p.print_format })));
     if (isAdmin()) return allPosProfiles;
 
     // Staff only sees allowed profiles
@@ -241,6 +243,8 @@ export default function SettingsPage() {
             value={posProfile?.name || ''}
             onChange={(e) => {
               const p = posProfiles?.find((p) => p.name === e.target.value);
+              console.log('[Settings] Selected POS Profile:', p);
+              console.log('[Settings] print_format in profile:', p?.print_format);
               setPosProfile(p || null);
             }}
             className="input"
