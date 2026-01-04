@@ -6,6 +6,7 @@ export interface POSProfileInfo {
   warehouse?: string;
   company?: string;
   customer?: string;  // Default customer (e.g., Walk-in Customer)
+  print_format?: string;  // Print format for receipts
   is_default?: boolean;
 }
 

@@ -59,11 +59,17 @@ export default function LoginPage() {
           // Find default profile or use first one
           const defaultProfile = profiles.find((p: any) => p.is_default) || profiles[0];
 
-          // Set POS Profile
-          const posProfile = await db.posProfiles.where('name').equals(defaultProfile.name).first();
-          if (posProfile) {
-            setPosProfile(posProfile);
-          }
+          // Set POS Profile - merge IndexedDB data with auth response (auth has latest print_format)
+          const storedProfile = await db.posProfiles.where('name').equals(defaultProfile.name).first();
+          const posProfileData = {
+            ...storedProfile,
+            name: defaultProfile.name,
+            warehouse: defaultProfile.warehouse,
+            company: defaultProfile.company,
+            customer: defaultProfile.customer,
+            print_format: defaultProfile.print_format  // Use print_format from auth response
+          };
+          setPosProfile(posProfileData);
 
           // Set warehouse from the profile
           if (defaultProfile.warehouse) {

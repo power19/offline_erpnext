@@ -96,7 +96,7 @@ async def login(request: LoginRequest):
                 # Get POS Profiles where this user is listed
                 all_profiles = client.get_list(
                     "POS Profile",
-                    fields=["name", "warehouse", "company", "disabled", "customer"],
+                    fields=["name", "warehouse", "company", "disabled", "customer", "print_format"],
                     filters={"disabled": 0}
                 )
 
@@ -124,6 +124,7 @@ async def login(request: LoginRequest):
                             "warehouse": profile.get("warehouse"),
                             "company": profile.get("company"),
                             "customer": profile.get("customer"),  # Default customer (Walk-in)
+                            "print_format": profile.get("print_format"),  # Print format for receipts
                             "is_default": is_default_for_user
                         })
                         if profile.get("warehouse"):
