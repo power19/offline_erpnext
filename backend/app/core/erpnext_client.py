@@ -51,7 +51,27 @@ class ERPNextClient:
                 headers=self._get_headers(),
                 timeout=30
             )
-            response.raise_for_status()
+
+            # Check for errors and capture response body for better error messages
+            if not response.ok:
+                error_msg = f"{response.status_code} Error for {url}"
+                try:
+                    error_data = response.json()
+                    # ERPNext returns errors in _server_messages or exc
+                    if "_server_messages" in error_data:
+                        messages = json.loads(error_data["_server_messages"])
+                        if messages:
+                            msg_data = json.loads(messages[0])
+                            error_msg = msg_data.get("message", str(msg_data))
+                    elif "message" in error_data:
+                        error_msg = error_data["message"]
+                    elif "exc" in error_data:
+                        error_msg = error_data["exc"][:500]
+                except:
+                    error_msg = response.text[:500] if response.text else error_msg
+                logger.error(f"ERPNext API error: {error_msg}")
+                raise Exception(error_msg)
+
             return response.json()
         except requests.exceptions.RequestException as e:
             logger.error(f"ERPNext API error: {e}")
