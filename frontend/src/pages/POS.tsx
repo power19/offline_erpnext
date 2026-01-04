@@ -14,6 +14,7 @@ export default function POSPage() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [erpnextUrl, setErpnextUrl] = useState('');
   const [lastInvoice, setLastInvoice] = useState<{ name?: string; offline_id: string } | null>(null);
@@ -413,13 +414,23 @@ export default function POSPage() {
               Payment
             </button>
           </div>
-          <button
-            onClick={handleCheckout}
-            disabled={cartItems.length === 0}
-            className="btn btn-primary w-full btn-lg"
-          >
-            Complete Sale
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowPreview(true)}
+              disabled={cartItems.length === 0}
+              className="btn btn-secondary"
+              title="Preview Receipt"
+            >
+              <Printer size={18} />
+            </button>
+            <button
+              onClick={handleCheckout}
+              disabled={cartItems.length === 0}
+              className="btn btn-primary flex-1 btn-lg"
+            >
+              Complete Sale
+            </button>
+          </div>
         </div>
       </div>
 
@@ -484,6 +495,122 @@ export default function POSPage() {
             setSelectedItem(null);
           }}
         />
+      )}
+
+      {/* Receipt Preview Modal (before sale) */}
+      {showPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-bold">Receipt Preview</h2>
+              <button onClick={() => setShowPreview(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4">
+              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm space-y-2">
+                {/* Header */}
+                <div className="text-center border-b pb-2">
+                  <div className="font-bold text-base">{posProfile?.company || 'Company'}</div>
+                  <div className="text-xs">{warehouse?.name || warehouse?.warehouse_name}</div>
+                  <div className="text-xs">{new Date().toLocaleString()}</div>
+                </div>
+
+                {/* Customer */}
+                {customer && (
+                  <div className="border-b pb-2">
+                    <div><strong>Customer:</strong> {customer.customer_name}</div>
+                    {customer.mobile_no && <div className="text-xs">Tel: {customer.mobile_no}</div>}
+                  </div>
+                )}
+
+                {/* Items */}
+                <div className="border-b pb-2 space-y-1">
+                  {cartItems.map((item, idx) => {
+                    const itemTotal = item.qty * item.rate;
+                    const discountAmt = item.discount_percentage > 0
+                      ? itemTotal * (item.discount_percentage / 100)
+                      : item.discount_amount;
+                    return (
+                      <div key={idx} className="text-xs">
+                        <div className="flex justify-between">
+                          <span className="flex-1 truncate">{item.item_name}</span>
+                          <span>{formatCurrency(itemTotal - discountAmt)}</span>
+                        </div>
+                        <div className="text-gray-500 pl-2">
+                          {item.qty} x {formatCurrency(item.rate)}
+                          {discountAmt > 0 && (
+                            <span className="text-green-600 ml-2">
+                              -{item.discount_percentage > 0 ? `${item.discount_percentage}%` : formatCurrency(discountAmt)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Totals */}
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>{formatCurrency(getSubtotal())}</span>
+                  </div>
+                  {getItemDiscountTotal() > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Item Discounts:</span>
+                      <span>-{formatCurrency(getItemDiscountTotal())}</span>
+                    </div>
+                  )}
+                  {getCartDiscount() > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount{discount?.type === 'percentage' ? ` (${discount.value}%)` : ''}:</span>
+                      <span>-{formatCurrency(getCartDiscount())}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-base border-t pt-1">
+                    <span>TOTAL:</span>
+                    <span>{formatCurrency(getTotal())}</span>
+                  </div>
+                </div>
+
+                {/* Payments */}
+                {payments.length > 0 && (
+                  <div className="border-t pt-2 space-y-1 text-xs">
+                    <div className="font-bold">Payments:</div>
+                    {payments.map((p, idx) => (
+                      <div key={idx} className="flex justify-between">
+                        <span>{p.mode_of_payment}:</span>
+                        <span>{formatCurrency(p.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div className="text-center text-xs pt-2 border-t">
+                  <div>Thank you for your purchase!</div>
+                  {posProfile?.print_format && (
+                    <div className="text-gray-400 mt-1">Format: {posProfile.print_format}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t flex gap-2">
+              <button onClick={() => setShowPreview(false)} className="btn btn-secondary flex-1">
+                Close
+              </button>
+              <button
+                onClick={() => { setShowPreview(false); handleCheckout(); }}
+                className="btn btn-primary flex-1"
+              >
+                Complete Sale & Print
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Print After Sale Modal with ERPNext Print Preview */}
