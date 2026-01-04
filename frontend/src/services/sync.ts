@@ -306,8 +306,8 @@ class SyncService {
           offline_id: offlineId
         });
 
-        if (result.success && result.data?.name) {
-          erpnextName = result.data.name;
+        if (result.success && result.name) {
+          erpnextName = result.name;
           // Update local invoice with ERPNext name
           await db.invoices.update(id, {
             name: erpnextName,
