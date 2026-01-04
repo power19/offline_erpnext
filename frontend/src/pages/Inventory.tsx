@@ -226,13 +226,13 @@ function StockCheckTab({
         </div>
       ) : (
         <div className="space-y-2">
-          {Object.entries(groupedStock).map(([itemCode, stocks]) => {
+          {Object.entries(groupedStock).map(([itemCode, stocks], idx) => {
             const totalQty = stocks.reduce((sum, s) => sum + s.actual_qty, 0);
             const isExpanded = expandedItem === itemCode;
             const isLowStock = totalQty < 10;
 
             return (
-              <div key={itemCode} className="card">
+              <div key={`${itemCode}-${idx}`} className="card">
                 <button
                   onClick={() => setExpandedItem(isExpanded ? null : itemCode)}
                   className="w-full p-4 text-left flex items-center justify-between"
@@ -278,8 +278,8 @@ function StockCheckTab({
                         </tr>
                       </thead>
                       <tbody>
-                        {stocks.map((stock) => (
-                          <tr key={stock.warehouse} className="border-t">
+                        {stocks.map((stock, stockIdx) => (
+                          <tr key={`${stock.warehouse}-${stockIdx}`} className="border-t">
                             <td className="py-2">{stock.warehouse}</td>
                             <td className="text-right">{formatNumber(stock.actual_qty, 0)}</td>
                             <td className="text-right">{formatNumber(stock.reserved_qty, 0)}</td>
@@ -418,8 +418,8 @@ function AddStockTab({
             className="input"
           >
             <option value="">Select warehouse</option>
-            {warehouses.map((w) => (
-              <option key={w.name} value={w.name}>
+            {warehouses.map((w, idx) => (
+              <option key={w.id ?? `${w.name}-${idx}`} value={w.name}>
                 {w.warehouse_name}
               </option>
             ))}
@@ -619,8 +619,8 @@ function TransferStockTab({
               className="input"
             >
               <option value="">Select source</option>
-              {warehouses.map((w) => (
-                <option key={w.name} value={w.name}>
+              {warehouses.map((w, idx) => (
+                <option key={w.id ?? `from-${w.name}-${idx}`} value={w.name}>
                   {w.warehouse_name}
                 </option>
               ))}
