@@ -101,6 +101,7 @@ function StockCheckTab({
 }) {
   const [loading, setLoading] = useState(false);
   const [stockData, setStockData] = useState<StockBalance[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Get local stock data
   const localStock = useLiveQuery(
@@ -114,11 +115,18 @@ function StockCheckTab({
     []
   );
 
-  // Search suggestions for items
+  // Search suggestions for items (deduplicated)
   const itemSuggestions = useLiveQuery(
     async () => {
       if (!searchQuery || searchQuery.length < 2) return [];
-      return db.searchItems(searchQuery);
+      const results = await db.searchItems(searchQuery);
+      // Deduplicate by item_code
+      const seen = new Set<string>();
+      return results.filter(item => {
+        if (seen.has(item.item_code)) return false;
+        seen.add(item.item_code);
+        return true;
+      });
     },
     [searchQuery],
     []
@@ -179,18 +187,28 @@ function StockCheckTab({
             type="text"
             placeholder="Search item..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setShowSuggestions(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setShowSuggestions(false);
+                handleSearch();
+              }
+            }}
+            onFocus={() => setShowSuggestions(true)}
             className="input pl-10"
           />
           {/* Autocomplete suggestions */}
-          {itemSuggestions && itemSuggestions.length > 0 && (
+          {showSuggestions && itemSuggestions && itemSuggestions.length > 0 && (
             <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-lg border max-h-48 overflow-auto">
               {itemSuggestions.map((item, idx) => (
                 <button
                   key={`${item.item_code}-${idx}`}
                   onClick={() => {
                     setSearchQuery(item.item_code);
+                    setShowSuggestions(false);
                     handleSearch();
                   }}
                   className="w-full px-4 py-2 text-left hover:bg-gray-50 border-b last:border-b-0"
@@ -320,11 +338,19 @@ function AddStockTab({
   const [warehouse, setWarehouse] = useState('');
   const [remarks, setRemarks] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const items = useLiveQuery(
     async () => {
       if (!itemSearch || itemSearch.length < 2) return [];
-      return db.searchItems(itemSearch);
+      const results = await db.searchItems(itemSearch);
+      // Deduplicate by item_code
+      const seen = new Set<string>();
+      return results.filter(item => {
+        if (seen.has(item.item_code)) return false;
+        seen.add(item.item_code);
+        return true;
+      });
     },
     [itemSearch],
     []
@@ -496,7 +522,14 @@ function TransferStockTab({
   const items = useLiveQuery(
     async () => {
       if (!itemSearch || itemSearch.length < 2) return [];
-      return db.searchItems(itemSearch);
+      const results = await db.searchItems(itemSearch);
+      // Deduplicate by item_code
+      const seen = new Set<string>();
+      return results.filter(item => {
+        if (seen.has(item.item_code)) return false;
+        seen.add(item.item_code);
+        return true;
+      });
     },
     [itemSearch],
     []
