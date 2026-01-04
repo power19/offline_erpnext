@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
 from datetime import date
 import logging
+import requests
 
 from app.core.erpnext_client import ERPNextClient, get_erpnext_client
 from app.schemas.invoices import (
@@ -180,11 +181,11 @@ async def create_draft_invoice(
                 "item_code": item.item_code,
                 "qty": item.qty,
                 "rate": item.rate,
-                "uom": item.uom
+                "uom": item.uom or "Nos"
             }
-            if item.discount_percentage > 0:
+            if item.discount_percentage and item.discount_percentage > 0:
                 item_data["discount_percentage"] = item.discount_percentage
-            if item.discount_amount > 0:
+            if item.discount_amount and item.discount_amount > 0:
                 item_data["discount_amount"] = item.discount_amount
             if item.warehouse:
                 item_data["warehouse"] = item.warehouse
@@ -196,27 +197,38 @@ async def create_draft_invoice(
             for p in invoice.payments
         ]
 
-        # Create draft (docstatus=0 by default when using create_doc)
+        # Get POS Profile settings if specified
         from app.core.config import settings
+        from datetime import date
+
+        pos_profile_data = {}
+        if invoice.pos_profile:
+            try:
+                profile = client.get_doc("POS Profile", invoice.pos_profile)
+                pos_profile_data = profile.get("data", {})
+            except:
+                pass
+
+        # Create draft using Frappe's insert method with docstatus=0
         data = {
             "doctype": "POS Invoice",
             "customer": invoice.customer,
-            "company": settings.default_company,
-            "currency": settings.default_currency,
-            "selling_price_list": "Standard Selling",
+            "company": pos_profile_data.get("company") or settings.default_company,
+            "currency": pos_profile_data.get("currency") or settings.default_currency,
+            "selling_price_list": pos_profile_data.get("selling_price_list") or "Standard Selling",
             "items": items,
             "payments": payments,
             "is_pos": 1,
-            "update_stock": 0,  # Don't update stock for draft
-            "docstatus": 0  # Draft
+            "update_stock": 1,
+            "set_warehouse": pos_profile_data.get("warehouse") or invoice.items[0].warehouse if invoice.items else None,
+            "posting_date": date.today().isoformat(),
+            "pos_profile": invoice.pos_profile
         }
 
-        if invoice.discount_amount > 0:
+        if invoice.discount_amount and invoice.discount_amount > 0:
             data["discount_amount"] = invoice.discount_amount
-        if invoice.additional_discount_percentage > 0:
+        if invoice.additional_discount_percentage and invoice.additional_discount_percentage > 0:
             data["additional_discount_percentage"] = invoice.additional_discount_percentage
-        if invoice.pos_profile:
-            data["pos_profile"] = invoice.pos_profile
 
         result = client.create_doc("POS Invoice", data)
 
@@ -225,6 +237,17 @@ async def create_draft_invoice(
             "name": result.get("data", {}).get("name"),
             "message": "Draft invoice created"
         }
+    except requests.exceptions.HTTPError as e:
+        # Try to get more details from ERPNext error response
+        error_detail = str(e)
+        if hasattr(e, 'response') and e.response is not None:
+            try:
+                error_json = e.response.json()
+                error_detail = error_json.get("exc_type", "") + ": " + str(error_json.get("_server_messages", error_json.get("message", str(e))))
+            except:
+                error_detail = e.response.text[:500] if e.response.text else str(e)
+        logger.error(f"Error creating draft invoice: {error_detail}")
+        raise HTTPException(status_code=500, detail=error_detail)
     except Exception as e:
         logger.error(f"Error creating draft invoice: {e}")
         raise HTTPException(status_code=500, detail=str(e))
