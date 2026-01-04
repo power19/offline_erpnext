@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Search, Plus, Minus, Trash2, User, Percent, DollarSign, X, MapPin, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -14,7 +14,6 @@ export default function POSPage() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
-  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [erpnextUrl, setErpnextUrl] = useState('');
   const [lastInvoice, setLastInvoice] = useState<{ name?: string; offline_id: string } | null>(null);
@@ -414,22 +413,13 @@ export default function POSPage() {
               Payment
             </button>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowPrintPreview(true)}
-              disabled={cartItems.length === 0}
-              className="btn btn-secondary"
-            >
-              <Printer size={18} />
-            </button>
-            <button
-              onClick={handleCheckout}
-              disabled={cartItems.length === 0}
-              className="btn btn-primary flex-1 btn-lg"
-            >
-              Complete Sale
-            </button>
-          </div>
+          <button
+            onClick={handleCheckout}
+            disabled={cartItems.length === 0}
+            className="btn btn-primary w-full btn-lg"
+          >
+            Complete Sale
+          </button>
         </div>
       </div>
 
@@ -496,55 +486,66 @@ export default function POSPage() {
         />
       )}
 
-      {/* Print Preview Modal */}
-      {showPrintPreview && (
-        <PrintPreviewModal
-          customer={customer}
-          items={cartItems}
-          subtotal={getSubtotal()}
-          itemDiscountTotal={getItemDiscountTotal()}
-          cartDiscount={getCartDiscount()}
-          cartDiscountInfo={discount}
-          total={getTotal()}
-          payments={payments}
-          posProfile={posProfile}
-          warehouse={warehouse}
-          onClose={() => setShowPrintPreview(false)}
-        />
-      )}
-
-      {/* Print After Sale Modal */}
+      {/* Print After Sale Modal with ERPNext Print Preview */}
       {showPrintAfterSale && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl w-full max-w-sm p-6 text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-bold mb-2">Sale Complete!</h3>
-            <p className="text-gray-600 mb-4">
-              {lastInvoice?.name
-                ? `Invoice ${lastInvoice.name} created`
-                : 'Invoice saved locally. Will sync when online.'}
-            </p>
-
-            <div className="space-y-2">
-              {lastInvoice?.name && erpnextUrl && (
-                <button onClick={handlePrintInvoice} className="btn btn-primary w-full">
-                  <Printer size={18} className="mr-2" />
-                  Print Receipt
-                  {posProfile?.print_format && (
-                    <span className="text-xs ml-1 opacity-75">({posProfile.print_format})</span>
-                  )}
-                </button>
-              )}
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold">Sale Complete!</h3>
+                  <p className="text-sm text-gray-500">
+                    {lastInvoice?.name || 'Saved locally - will sync when online'}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowPrintAfterSale(false)}
-                className="btn btn-secondary w-full"
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Print Preview iframe */}
+            {lastInvoice?.name && erpnextUrl ? (
+              <div className="flex-1 min-h-0 p-4">
+                <iframe
+                  src={`${erpnextUrl}/printview?doctype=POS%20Invoice&name=${encodeURIComponent(lastInvoice.name)}&format=${encodeURIComponent(posProfile?.print_format || '')}`}
+                  className="w-full h-full min-h-[400px] border rounded-lg"
+                  title="Print Preview"
+                />
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center p-8 text-center text-gray-500">
+                <div>
+                  <Printer size={48} className="mx-auto mb-4 opacity-50" />
+                  <p>Invoice saved locally.</p>
+                  <p className="text-sm">Print preview will be available after syncing to ERPNext.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Footer buttons */}
+            <div className="flex gap-3 p-4 border-t">
+              <button
+                onClick={() => setShowPrintAfterSale(false)}
+                className="btn btn-secondary flex-1"
               >
                 New Sale
               </button>
+              {lastInvoice?.name && erpnextUrl && (
+                <button onClick={handlePrintInvoice} className="btn btn-primary flex-1">
+                  <Printer size={18} className="mr-2" />
+                  Print
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -762,204 +763,3 @@ function DiscountModal({
   );
 }
 
-// Print Preview Modal
-function PrintPreviewModal({
-  customer,
-  items,
-  subtotal,
-  itemDiscountTotal,
-  cartDiscount,
-  cartDiscountInfo,
-  total,
-  payments,
-  posProfile,
-  warehouse,
-  onClose
-}: {
-  customer: Customer | null;
-  items: CartItem[];
-  subtotal: number;
-  itemDiscountTotal: number;
-  cartDiscount: number;
-  cartDiscountInfo: Discount | null;
-  total: number;
-  payments: { mode_of_payment: string; amount: number }[];
-  posProfile: any;
-  warehouse: any;
-  onClose: () => void;
-}) {
-  const printRef = useRef<HTMLDivElement>(null);
-
-  const handlePrint = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
-
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Please allow popups for printing');
-      return;
-    }
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Receipt</title>
-          <style>
-            body {
-              font-family: 'Courier New', monospace;
-              padding: 10px;
-              font-size: 12px;
-              max-width: 300px;
-              margin: 0 auto;
-            }
-            .header { text-align: center; margin-bottom: 10px; }
-            .header h2 { margin: 0; font-size: 16px; }
-            .header p { margin: 2px 0; font-size: 11px; }
-            .divider { border-top: 1px dashed #000; margin: 8px 0; }
-            .items { margin: 10px 0; }
-            .item { display: flex; justify-content: space-between; margin: 4px 0; }
-            .item-name { flex: 1; }
-            .item-qty { width: 50px; text-align: center; }
-            .item-amount { width: 70px; text-align: right; }
-            .totals { margin-top: 10px; }
-            .total-row { display: flex; justify-content: space-between; margin: 3px 0; }
-            .grand-total { font-weight: bold; font-size: 14px; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
-            .footer { text-align: center; margin-top: 15px; font-size: 11px; }
-            @media print { body { padding: 0; } }
-          </style>
-        </head>
-        <body>
-          ${printContent.innerHTML}
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
-  };
-
-  const currentDate = new Date();
-  const dateStr = currentDate.toLocaleDateString();
-  const timeStr = currentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-bold">Print Preview</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Receipt Preview */}
-        <div className="flex-1 overflow-auto p-4">
-          <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm" ref={printRef}>
-            {/* Header */}
-            <div className="header">
-              <h2>{posProfile?.company || 'Company Name'}</h2>
-              {posProfile?.letter_head && <p>{posProfile.letter_head}</p>}
-              {warehouse && <p>{warehouse.warehouse_name || warehouse.name}</p>}
-              <p>{dateStr} {timeStr}</p>
-            </div>
-
-            <div className="divider"></div>
-
-            {/* Customer */}
-            {customer && (
-              <>
-                <p><strong>Customer:</strong> {customer.customer_name}</p>
-                {customer.mobile_no && <p>Phone: {customer.mobile_no}</p>}
-                <div className="divider"></div>
-              </>
-            )}
-
-            {/* Items */}
-            <div className="items">
-              {items.map((item, idx) => (
-                <div key={idx}>
-                  <div className="item">
-                    <span className="item-name">{item.item_name}</span>
-                  </div>
-                  <div className="item">
-                    <span className="item-qty">{item.qty} x {formatCurrency(item.rate)}</span>
-                    <span className="item-amount">{formatCurrency(item.amount)}</span>
-                  </div>
-                  {(item.discount_percentage > 0 || item.discount_amount > 0) && (
-                    <div className="item" style={{ color: '#16a34a', fontSize: '11px' }}>
-                      <span>Discount: {item.discount_percentage > 0 ? `${item.discount_percentage}%` : formatCurrency(item.discount_amount)}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="divider"></div>
-
-            {/* Totals */}
-            <div className="totals">
-              <div className="total-row">
-                <span>Subtotal:</span>
-                <span>{formatCurrency(subtotal)}</span>
-              </div>
-              {itemDiscountTotal > 0 && (
-                <div className="total-row" style={{ color: '#16a34a' }}>
-                  <span>Item Discounts:</span>
-                  <span>-{formatCurrency(itemDiscountTotal)}</span>
-                </div>
-              )}
-              {cartDiscount > 0 && (
-                <div className="total-row" style={{ color: '#16a34a' }}>
-                  <span>Cart Discount{cartDiscountInfo?.type === 'percentage' ? ` (${cartDiscountInfo.value}%)` : ''}:</span>
-                  <span>-{formatCurrency(cartDiscount)}</span>
-                </div>
-              )}
-              <div className="total-row grand-total">
-                <span>TOTAL:</span>
-                <span>{formatCurrency(total)}</span>
-              </div>
-            </div>
-
-            {/* Payments */}
-            {payments.length > 0 && (
-              <>
-                <div className="divider"></div>
-                <div className="totals">
-                  {payments.map((p, idx) => (
-                    <div key={idx} className="total-row">
-                      <span>{p.mode_of_payment}:</span>
-                      <span>{formatCurrency(p.amount)}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Footer */}
-            <div className="divider"></div>
-            <div className="footer">
-              <p>Thank you for your purchase!</p>
-              {posProfile?.print_format && <p>Format: {posProfile.print_format}</p>}
-            </div>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="p-4 border-t flex gap-2">
-          <button onClick={onClose} className="btn btn-secondary flex-1">
-            Close
-          </button>
-          <button onClick={handlePrint} className="btn btn-primary flex-1">
-            <Printer size={18} className="mr-2" />
-            Print
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
