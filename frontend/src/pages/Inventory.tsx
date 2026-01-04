@@ -186,9 +186,9 @@ function StockCheckTab({
           {/* Autocomplete suggestions */}
           {itemSuggestions && itemSuggestions.length > 0 && (
             <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-lg border max-h-48 overflow-auto">
-              {itemSuggestions.map((item) => (
+              {itemSuggestions.map((item, idx) => (
                 <button
-                  key={item.item_code}
+                  key={`${item.item_code}-${idx}`}
                   onClick={() => {
                     setSearchQuery(item.item_code);
                     handleSearch();
@@ -389,9 +389,9 @@ function AddStockTab({
             />
             {items && items.length > 0 && !itemCode && (
               <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border max-h-48 overflow-auto">
-                {items.map((item) => (
+                {items.map((item, idx) => (
                   <button
-                    key={item.item_code}
+                    key={`${item.item_code}-${idx}`}
                     onClick={() => {
                       setItemCode(item.item_code);
                       setItemSearch(item.item_name);
@@ -588,9 +588,9 @@ function TransferStockTab({
             />
             {items && items.length > 0 && !itemCode && (
               <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border max-h-48 overflow-auto">
-                {items.map((item) => (
+                {items.map((item, idx) => (
                   <button
-                    key={item.item_code}
+                    key={`${item.item_code}-${idx}`}
                     onClick={() => {
                       setItemCode(item.item_code);
                       setItemSearch(item.item_name);
