@@ -102,9 +102,10 @@ export default function SetupPage() {
           ['Item', 'Customer', 'Warehouse', 'POS Profile', 'Mode of Payment', 'Bin']
         );
 
-        // Save to IndexedDB
+        // Save to IndexedDB - clear before inserting to prevent duplicates
         if (data.items?.length > 0) {
           setSyncStatus(`Saving ${data.items.length} items...`);
+          await db.items.clear();
           await db.items.bulkPut(
             data.items.map((item: Record<string, unknown>) => ({ ...item, synced: true }))
           );
@@ -112,6 +113,7 @@ export default function SetupPage() {
 
         if (data.customers?.length > 0) {
           setSyncStatus(`Saving ${data.customers.length} customers...`);
+          await db.customers.clear();
           await db.customers.bulkPut(
             data.customers.map((c: Record<string, unknown>) => ({ ...c, synced: true }))
           );
@@ -119,14 +121,17 @@ export default function SetupPage() {
 
         if (data.warehouses?.length > 0) {
           setSyncStatus(`Saving ${data.warehouses.length} warehouses...`);
+          await db.warehouses.clear();
           await db.warehouses.bulkPut(data.warehouses);
         }
 
         if (data.pos_profiles?.length > 0) {
+          await db.posProfiles.clear();
           await db.posProfiles.bulkPut(data.pos_profiles);
         }
 
         if (data.payment_methods?.length > 0) {
+          await db.paymentMethods.clear();
           await db.paymentMethods.bulkPut(data.payment_methods);
         }
 

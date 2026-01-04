@@ -186,28 +186,34 @@ class SyncService {
       lastSync
     );
 
-    // Update local database
+    // Update local database - clear before inserting to prevent duplicates
+    // (since primary key is auto-increment, not the ERPNext 'name')
     if (data.items?.length > 0) {
+      await db.items.clear();
       await db.items.bulkPut(
         data.items.map((item: Record<string, unknown>) => ({ ...item, synced: true }))
       );
     }
 
     if (data.customers?.length > 0) {
+      await db.customers.clear();
       await db.customers.bulkPut(
         data.customers.map((c: Record<string, unknown>) => ({ ...c, synced: true }))
       );
     }
 
     if (data.warehouses?.length > 0) {
+      await db.warehouses.clear();
       await db.warehouses.bulkPut(data.warehouses);
     }
 
     if (data.pos_profiles?.length > 0) {
+      await db.posProfiles.clear();
       await db.posProfiles.bulkPut(data.pos_profiles);
     }
 
     if (data.payment_methods?.length > 0) {
+      await db.paymentMethods.clear();
       await db.paymentMethods.bulkPut(data.payment_methods);
     }
 
