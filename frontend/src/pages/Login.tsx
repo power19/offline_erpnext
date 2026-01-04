@@ -55,9 +55,12 @@ export default function LoginPage() {
 
         // Auto-set warehouse, POS profile and default customer from user's default profile
         const profiles = data.user.pos_profiles;
+        console.log('[Login] POS Profiles from auth:', profiles);
         if (profiles && profiles.length > 0) {
           // Find default profile or use first one
           const defaultProfile = profiles.find((p: any) => p.is_default) || profiles[0];
+          console.log('[Login] Default profile:', defaultProfile);
+          console.log('[Login] print_format from auth:', defaultProfile.print_format);
 
           // Set POS Profile - merge IndexedDB data with auth response (auth has latest print_format)
           const storedProfile = await db.posProfiles.where('name').equals(defaultProfile.name).first();
@@ -69,6 +72,7 @@ export default function LoginPage() {
             customer: defaultProfile.customer,
             print_format: defaultProfile.print_format  // Use print_format from auth response
           };
+          console.log('[Login] Setting posProfile with print_format:', posProfileData.print_format);
           setPosProfile(posProfileData);
 
           // Set warehouse from the profile

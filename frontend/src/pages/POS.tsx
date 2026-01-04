@@ -169,6 +169,10 @@ export default function POSPage() {
 
   // Print using ERPNext print format
   const handlePrintInvoice = () => {
+    console.log('[POS] handlePrintInvoice called');
+    console.log('[POS] posProfile:', posProfile);
+    console.log('[POS] posProfile.print_format:', posProfile?.print_format);
+
     if (!lastInvoice?.name || !erpnextUrl) {
       toast.error('Invoice not synced yet. Please try again after sync.');
       return;
@@ -176,6 +180,9 @@ export default function POSPage() {
 
     const printFormat = posProfile?.print_format || '';
     const printUrl = `${erpnextUrl}/printview?doctype=POS%20Invoice&name=${encodeURIComponent(lastInvoice.name)}&format=${encodeURIComponent(printFormat)}`;
+
+    console.log('[POS] Using print format:', printFormat);
+    console.log('[POS] Print URL:', printUrl);
 
     window.open(printUrl, '_blank');
     setShowPrintAfterSale(false);

@@ -137,10 +137,20 @@ async def login(request: LoginRequest):
                     try:
                         all_profiles = client.get_list(
                             "POS Profile",
-                            fields=["name", "warehouse", "company"],
+                            fields=["name", "warehouse", "company", "customer", "print_format"],
                             filters={"disabled": 0}
                         )
-                        pos_profiles = all_profiles
+                        pos_profiles = [
+                            {
+                                "name": p["name"],
+                                "warehouse": p.get("warehouse"),
+                                "company": p.get("company"),
+                                "customer": p.get("customer"),
+                                "print_format": p.get("print_format"),
+                                "is_default": False
+                            }
+                            for p in all_profiles
+                        ]
                         allowed_warehouses = [p.get("warehouse") for p in all_profiles if p.get("warehouse")]
                     except:
                         pass
