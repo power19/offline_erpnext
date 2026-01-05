@@ -313,6 +313,56 @@ async def delete_invoice(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{invoice_name}/print-html")
+async def get_invoice_print_html(
+    invoice_name: str,
+    print_format: Optional[str] = Query(None),
+    client: ERPNextClient = Depends(get_erpnext_client)
+):
+    """
+    Get the rendered print HTML for an invoice.
+    Uses ERPNext's print format rendering.
+    """
+    try:
+        # Use ERPNext's API to get rendered print HTML
+        result = client._make_request(
+            "GET",
+            "/api/method/frappe.www.printview.get_html_and_style",
+            params={
+                "doc": invoice_name,
+                "doctype": "POS Invoice",
+                "print_format": print_format or "",
+                "no_letterhead": 0
+            }
+        )
+
+        html = result.get("message", {}).get("html", "")
+        style = result.get("message", {}).get("style", "")
+
+        # Combine HTML with styles
+        full_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>{style}</style>
+        </head>
+        <body>
+            {html}
+        </body>
+        </html>
+        """
+
+        return {
+            "success": True,
+            "html": full_html,
+            "name": invoice_name
+        }
+    except Exception as e:
+        logger.error(f"Error getting print HTML for {invoice_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/return", response_model=dict)
 async def create_return(
     return_data: POSReturnCreate,

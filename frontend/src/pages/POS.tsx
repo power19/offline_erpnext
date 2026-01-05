@@ -25,6 +25,11 @@ export default function POSPage() {
   const [draftInvoiceName, setDraftInvoiceName] = useState<string | null>(null);
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
   const [isSubmittingDraft, setIsSubmittingDraft] = useState(false);
+  const [printHtml, setPrintHtml] = useState<string | null>(null);
+
+  // Post-sale print HTML
+  const [postSalePrintHtml, setPostSalePrintHtml] = useState<string | null>(null);
+  const [isLoadingPostSalePrint, setIsLoadingPostSalePrint] = useState(false);
 
   const {
     items: cartItems,
@@ -79,6 +84,28 @@ export default function POSPage() {
       if (url) setErpnextUrl(url);
     });
   }, []);
+
+  // Fetch print HTML when post-sale modal is shown
+  useEffect(() => {
+    if (showPrintAfterSale && lastInvoice?.name && navigator.onLine) {
+      setIsLoadingPostSalePrint(true);
+      setPostSalePrintHtml(null);
+      api.getInvoicePrintHtml(lastInvoice.name, posProfile?.print_format)
+        .then((result) => {
+          if (result.success && result.html) {
+            setPostSalePrintHtml(result.html);
+          }
+        })
+        .catch((error) => {
+          console.error('Error fetching post-sale print HTML:', error);
+        })
+        .finally(() => {
+          setIsLoadingPostSalePrint(false);
+        });
+    } else if (!showPrintAfterSale) {
+      setPostSalePrintHtml(null);
+    }
+  }, [showPrintAfterSale, lastInvoice?.name, posProfile?.print_format]);
 
   // Helper to get full image URL
   const getImageUrl = (imagePath?: string): string | null => {
@@ -214,6 +241,7 @@ export default function POSPage() {
 
     setIsCreatingDraft(true);
     setShowPreview(true);
+    setPrintHtml(null);
 
     try {
       const result = await api.createDraftInvoice({
@@ -235,6 +263,17 @@ export default function POSPage() {
 
       if (result.success && result.name) {
         setDraftInvoiceName(result.name);
+
+        // Fetch the print HTML from ERPNext
+        try {
+          const printResult = await api.getInvoicePrintHtml(result.name, posProfile?.print_format);
+          if (printResult.success && printResult.html) {
+            setPrintHtml(printResult.html);
+          }
+        } catch (printError) {
+          console.error('Error fetching print HTML:', printError);
+          // Draft created but couldn't get print HTML - still show the draft name
+        }
       } else {
         toast.error('Failed to create preview');
         setShowPreview(false);
@@ -258,6 +297,7 @@ export default function POSPage() {
       }
     }
     setDraftInvoiceName(null);
+    setPrintHtml(null);
     setShowPreview(false);
   };
 
@@ -638,19 +678,24 @@ export default function POSPage() {
               </button>
             </div>
 
-            {/* ERPNext Print Preview iframe */}
-            <div className="flex-1 min-h-0 p-4">
+            {/* ERPNext Print Preview */}
+            <div className="flex-1 min-h-0 p-4 overflow-auto">
               {isCreatingDraft ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
                   <Loader className="animate-spin mb-4" size={40} />
                   <p className="text-gray-500">Creating preview...</p>
                 </div>
-              ) : draftInvoiceName && erpnextUrl ? (
+              ) : printHtml ? (
                 <iframe
-                  src={`${erpnextUrl}/printview?doctype=POS%20Invoice&name=${encodeURIComponent(draftInvoiceName)}&format=${encodeURIComponent(posProfile?.print_format || '')}`}
-                  className="w-full h-full min-h-[400px] border rounded-lg"
+                  srcDoc={printHtml}
+                  className="w-full h-full min-h-[400px] border rounded-lg bg-white"
                   title="Receipt Preview"
                 />
+              ) : draftInvoiceName ? (
+                <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
+                  <Loader className="animate-spin mb-4" size={40} />
+                  <p className="text-gray-500">Loading print format...</p>
+                </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-gray-500">
                   <Printer size={48} className="mb-4 opacity-50" />
@@ -717,23 +762,32 @@ export default function POSPage() {
             </div>
 
             {/* Print Preview iframe */}
-            {lastInvoice?.name && erpnextUrl ? (
-              <div className="flex-1 min-h-0 p-4">
+            <div className="flex-1 min-h-0 p-4">
+              {isLoadingPostSalePrint ? (
+                <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
+                  <Loader className="animate-spin mb-4" size={40} />
+                  <p className="text-gray-500">Loading receipt...</p>
+                </div>
+              ) : postSalePrintHtml ? (
                 <iframe
-                  src={`${erpnextUrl}/printview?doctype=POS%20Invoice&name=${encodeURIComponent(lastInvoice.name)}&format=${encodeURIComponent(posProfile?.print_format || '')}`}
-                  className="w-full h-full min-h-[400px] border rounded-lg"
+                  srcDoc={postSalePrintHtml}
+                  className="w-full h-full min-h-[400px] border rounded-lg bg-white"
                   title="Print Preview"
                 />
-              </div>
-            ) : (
-              <div className="flex-1 flex items-center justify-center p-8 text-center text-gray-500">
-                <div>
+              ) : lastInvoice?.name ? (
+                <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-gray-500">
+                  <Printer size={48} className="mx-auto mb-4 opacity-50" />
+                  <p>Could not load print preview.</p>
+                  <p className="text-sm">Click Print to open in ERPNext.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-gray-500">
                   <Printer size={48} className="mx-auto mb-4 opacity-50" />
                   <p>Invoice saved locally.</p>
                   <p className="text-sm">Print preview will be available after syncing to ERPNext.</p>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Footer buttons */}
             <div className="flex gap-3 p-4 border-t">
@@ -743,7 +797,7 @@ export default function POSPage() {
               >
                 New Sale
               </button>
-              {lastInvoice?.name && erpnextUrl && (
+              {lastInvoice?.name && (
                 <button onClick={handlePrintInvoice} className="btn btn-primary flex-1">
                   <Printer size={18} className="mr-2" />
                   Print

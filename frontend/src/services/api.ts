@@ -127,6 +127,13 @@ class ApiService {
     return response.data;
   }
 
+  async getInvoicePrintHtml(invoiceName: string, printFormat?: string) {
+    const response = await this.client.get(`/invoices/${invoiceName}/print-html`, {
+      params: { print_format: printFormat }
+    });
+    return response.data;
+  }
+
   async getReturnableItems(invoiceName: string) {
     const response = await this.client.get(`/invoices/${invoiceName}/returnable-items`);
     return response.data;
