@@ -309,6 +309,14 @@ async def delete_invoice(
     except HTTPException:
         raise
     except Exception as e:
+        error_msg = str(e)
+        # If invoice not found, it's already deleted - return success
+        if "not found" in error_msg.lower():
+            return {
+                "success": True,
+                "name": invoice_name,
+                "message": "Invoice already deleted"
+            }
         logger.error(f"Error deleting invoice {invoice_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
