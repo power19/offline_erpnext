@@ -333,12 +333,11 @@ async def get_invoice_print_html(
         if not doc_data:
             raise HTTPException(status_code=404, detail="Invoice not found")
 
-        # Use ERPNext's API to get rendered print HTML
-        # The doc parameter needs to be the full document JSON
+        # Use ERPNext's API to get rendered print HTML via POST to avoid URL length limits
         result = client._make_request(
-            "GET",
+            "POST",
             "/api/method/frappe.www.printview.get_html_and_style",
-            params={
+            data={
                 "doc": json.dumps(doc_data),
                 "print_format": print_format or "Standard",
                 "no_letterhead": 0
