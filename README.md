@@ -64,22 +64,72 @@ A Progressive Web Application (PWA) for offline Point of Sale operations that sy
 
 ## Quick Start
 
-### Backend Setup
+### Linux/macOS
+
+**Backend:**
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env  # Configure your ERPNext credentials
 uvicorn app.main:app --reload
 ```
 
-### Frontend Setup
+**Frontend:**
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
+### Windows
+
+**Backend (Command Prompt):**
+```cmd
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+uvicorn app.main:app --reload
+```
+
+**Backend (PowerShell):**
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy .env.example .env
+uvicorn app.main:app --reload
+```
+
+**Frontend:**
+```cmd
+cd frontend
+npm install
+npm run dev
+```
+
+### Running Both Together (Windows)
+
+Open two terminals:
+
+**Terminal 1 - Backend:**
+```cmd
+cd backend
+venv\Scripts\activate
+uvicorn app.main:app --reload --port 8000
+```
+
+**Terminal 2 - Frontend:**
+```cmd
+cd frontend
+npm run dev
+```
+
+Then open http://localhost:5173 in your browser.
 
 ## Configuration
 
