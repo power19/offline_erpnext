@@ -266,7 +266,11 @@ export default function POSPage() {
 
         // Fetch the print HTML from ERPNext
         try {
-          const printResult = await api.getInvoicePrintHtml(result.name, posProfile?.print_format);
+          console.log('[POS Preview] posProfile:', posProfile);
+          console.log('[POS Preview] posProfile?.print_format:', posProfile?.print_format);
+          const printFormat = posProfile?.print_format;
+          console.log('[POS Preview] Fetching print HTML with format:', printFormat);
+          const printResult = await api.getInvoicePrintHtml(result.name, printFormat);
           if (printResult.success && printResult.html) {
             setPrintHtml(printResult.html);
           }
