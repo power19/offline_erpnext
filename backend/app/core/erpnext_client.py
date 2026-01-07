@@ -478,18 +478,18 @@ class ERPNextClient:
             "company": company,
             "period_start_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "posting_date": datetime.now().strftime("%Y-%m-%d"),
-            "balance_details": balance_details
+            "balance_details": balance_details,
+            "docstatus": 1  # Create as submitted directly
         }
 
-        # Create the document
-        result = self.create_doc("POS Opening Entry", data)
-        doc_name = result.get("data", {}).get("name")
+        # Use save method with docstatus=1 to create and submit in one go
+        result = self._make_request(
+            "POST",
+            "/api/method/frappe.client.save",
+            data={"doc": data}
+        )
 
-        if doc_name:
-            # Submit it (docstatus = 1)
-            self.submit_doc("POS Opening Entry", doc_name)
-
-        return result
+        return {"data": result.get("message", {})}
 
     def create_pos_closing_entry(
         self,
@@ -511,21 +511,21 @@ class ERPNextClient:
             "company": company,
             "posting_date": posting_date,
             "period_end_date": period_end_date,
-            "payment_reconciliation": payment_reconciliation
+            "payment_reconciliation": payment_reconciliation,
+            "docstatus": 1  # Create as submitted directly
         }
 
         if invoices:
             data["pos_transactions"] = invoices
 
-        # Create the document
-        result = self.create_doc("POS Closing Entry", data)
-        doc_name = result.get("data", {}).get("name")
+        # Use save method with docstatus=1 to create and submit in one go
+        result = self._make_request(
+            "POST",
+            "/api/method/frappe.client.save",
+            data={"doc": data}
+        )
 
-        if doc_name:
-            # Submit it (docstatus = 1)
-            self.submit_doc("POS Closing Entry", doc_name)
-
-        return result
+        return {"data": result.get("message", {})}
 
     def get_pos_session_invoices(self, pos_opening_entry: str) -> List[Dict[str, Any]]:
         """Get all invoices created during a POS session."""
