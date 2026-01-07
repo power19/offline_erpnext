@@ -343,8 +343,22 @@ async def get_invoice_print_html(
         if not doc_data:
             raise HTTPException(status_code=404, detail="Invoice not found")
 
-        # Use the provided print_format, or try to get from POS Profile, or default to Standard
-        actual_print_format = print_format if print_format else "Standard"
+        # Use the provided print_format, or get from POS Profile, or default to Standard
+        actual_print_format = print_format
+        if not actual_print_format:
+            # Try to get print_format from the POS Profile associated with this invoice
+            pos_profile_name = doc_data.get("pos_profile")
+            if pos_profile_name:
+                try:
+                    profile = client.get_doc("POS Profile", pos_profile_name)
+                    actual_print_format = profile.get("data", {}).get("print_format")
+                    logger.info(f"Got print_format from POS Profile {pos_profile_name}: '{actual_print_format}'")
+                except Exception as e:
+                    logger.warning(f"Could not get POS Profile: {e}")
+
+        if not actual_print_format:
+            actual_print_format = "Standard"
+
         logger.info(f"Using print format: '{actual_print_format}'")
 
         # Use ERPNext's API to get rendered print HTML via POST to avoid URL length limits
