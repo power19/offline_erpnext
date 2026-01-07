@@ -332,6 +332,8 @@ async def get_invoice_print_html(
     Uses ERPNext's print format rendering.
     """
     import json
+    import re
+    from app.core.config import runtime_config
 
     logger.info(f"Print HTML request for {invoice_name}, print_format param: '{print_format}'")
 
@@ -375,12 +377,28 @@ async def get_invoice_print_html(
         html = result.get("message", {}).get("html", "")
         style = result.get("message", {}).get("style", "")
 
+        # Convert relative URLs to absolute URLs using ERPNext base URL
+        erpnext_url = runtime_config.erpnext_url.rstrip('/')
+        if erpnext_url:
+            # Fix src="/..." attributes (images, scripts)
+            html = re.sub(r'src="/', f'src="{erpnext_url}/', html)
+            html = re.sub(r"src='/", f"src='{erpnext_url}/", html)
+            # Fix href="/..." attributes (stylesheets, links)
+            html = re.sub(r'href="/', f'href="{erpnext_url}/', html)
+            html = re.sub(r"href='/", f"href='{erpnext_url}/", html)
+            # Fix url("/...") in inline styles
+            html = re.sub(r'url\("/', f'url("{erpnext_url}/', html)
+            html = re.sub(r"url\('/", f"url('{erpnext_url}/", html)
+            style = re.sub(r'url\("/', f'url("{erpnext_url}/', style)
+            style = re.sub(r"url\('/", f"url('{erpnext_url}/", style)
+
         # Combine HTML with styles
         full_html = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
+            <base href="{erpnext_url}/">
             <style>{style}</style>
         </head>
         <body>
