@@ -64,7 +64,52 @@ A Progressive Web Application (PWA) for offline Point of Sale operations that sy
 
 ## Quick Start
 
-### Linux/macOS
+### Docker (Recommended)
+
+The easiest way to run the application:
+
+```bash
+# Clone and navigate to the project
+cd offline_erpnext
+
+# Copy environment file and customize if needed
+cp .env.docker.example .env
+
+# Build and start containers
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f
+```
+
+The application will be available at:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+
+**Stop the containers:**
+```bash
+docker-compose down
+```
+
+**Rebuild after code changes:**
+```bash
+docker-compose up -d --build
+```
+
+### Custom Ports
+
+You can change the ports in your `.env` file:
+```env
+FRONTEND_PORT=8080
+BACKEND_PORT=9000
+```
+
+---
+
+### Manual Installation
+
+#### Linux/macOS
 
 **Backend:**
 ```bash
@@ -83,7 +128,7 @@ npm install
 npm run dev
 ```
 
-### Windows
+#### Windows
 
 **Backend (Command Prompt):**
 ```cmd
@@ -112,7 +157,7 @@ npm install
 npm run dev
 ```
 
-### Running Both Together (Windows)
+#### Running Both Together (Windows)
 
 Open two terminals:
 
@@ -133,12 +178,20 @@ Then open http://localhost:5173 in your browser.
 
 ## Configuration
 
-Create a `.env` file in the backend directory:
-```env
-ERPNEXT_URL=https://your-erpnext-instance.com
-ERPNEXT_API_KEY=your-api-key
-ERPNEXT_API_SECRET=your-api-secret
-```
+ERPNext connection is configured through the **web interface** when you first open the app:
+
+1. Open the app at http://localhost:3000 (or http://localhost:5173 for dev)
+2. Click **"Setup Connection"**
+3. Enter your ERPNext URL (e.g., `https://your-erpnext.com`)
+4. Enter API Key and API Secret (generate from ERPNext User settings)
+5. Click **"Test & Connect"**
+
+### Getting ERPNext API Credentials
+
+1. Log into ERPNext as Administrator
+2. Go to **User** → your user → **API Access**
+3. Click **Generate Keys**
+4. Copy the API Key and API Secret
 
 ## API Documentation
 

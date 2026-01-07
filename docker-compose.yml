@@ -5,25 +5,41 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: offline-pos-backend
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     environment:
-      - ERPNEXT_URL=${ERPNEXT_URL}
-      - ERPNEXT_API_KEY=${ERPNEXT_API_KEY}
-      - ERPNEXT_API_SECRET=${ERPNEXT_API_SECRET}
+      - DEBUG=${DEBUG:-false}
+      - CORS_ORIGINS=http://localhost:${FRONTEND_PORT:-3000},http://localhost:5173
       - DEFAULT_WAREHOUSE=${DEFAULT_WAREHOUSE:-Stores - Company}
       - DEFAULT_COMPANY=${DEFAULT_COMPANY:-Your Company}
-      - DEBUG=false
-    volumes:
-      - ./backend:/app
+      - DEFAULT_CURRENCY=${DEFAULT_CURRENCY:-USD}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
+    networks:
+      - pos-network
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-}
+    container_name: offline-pos-frontend
     ports:
-      - "3000:80"
+      - "${FRONTEND_PORT:-3000}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - pos-network
+
+networks:
+  pos-network:
+    driver: bridge
