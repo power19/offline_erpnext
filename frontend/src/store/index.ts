@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CartItem, Customer, Payment, Discount, Warehouse, POSProfile } from '../types';
 
+interface POSSession {
+  name: string;
+  pos_profile: string;
+  user: string;
+  status: string;
+  period_start_date?: string;
+}
+
 interface CartState {
   items: CartItem[];
   customer: Customer | null;
@@ -9,6 +17,7 @@ interface CartState {
   discount: Discount | null;
   warehouse: Warehouse | null;
   posProfile: POSProfile | null;
+  posSession: POSSession | null;
 
   // Cart actions
   addItem: (item: CartItem) => void;
@@ -33,6 +42,7 @@ interface CartState {
   // Settings
   setWarehouse: (warehouse: Warehouse | null) => void;
   setPosProfile: (profile: POSProfile | null) => void;
+  setPosSession: (session: POSSession | null) => void;
 
   // Calculated values
   getSubtotal: () => number;
@@ -52,6 +62,7 @@ export const useCartStore = create<CartState>()(
       discount: null,
       warehouse: null,
       posProfile: null,
+      posSession: null,
 
       addItem: (item) => {
         const { items } = get();
@@ -162,6 +173,8 @@ export const useCartStore = create<CartState>()(
 
       setPosProfile: (posProfile) => set({ posProfile }),
 
+      setPosSession: (posSession) => set({ posSession }),
+
       getSubtotal: () => {
         return get().items.reduce((sum, item) => sum + (item.qty * item.rate), 0);
       },
@@ -215,7 +228,8 @@ export const useCartStore = create<CartState>()(
         items: state.items,
         customer: state.customer,
         warehouse: state.warehouse,
-        posProfile: state.posProfile
+        posProfile: state.posProfile,
+        posSession: state.posSession
       })
     }
   )

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Search, Plus, Minus, Trash2, User, Percent, DollarSign, X, MapPin, Printer, Loader } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, User, Percent, DollarSign, X, MapPin, Printer, Loader, Play, Square } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../services/database';
 import { syncService } from '../services/sync';
 import { api } from '../services/api';
 import { useCartStore } from '../store';
+import { useAuthStore } from '../store/auth';
 import { formatCurrency, formatQty } from '../utils/format';
 import { Item, Customer, Discount, CartItem } from '../types';
 
@@ -31,6 +32,16 @@ export default function POSPage() {
   const [postSalePrintHtml, setPostSalePrintHtml] = useState<string | null>(null);
   const [isLoadingPostSalePrint, setIsLoadingPostSalePrint] = useState(false);
 
+  // POS Session state
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [isOpeningSession, setIsOpeningSession] = useState(false);
+  const [isClosingSession, setIsClosingSession] = useState(false);
+  const [sessionSummary, setSessionSummary] = useState<{ total_invoices: number; total_sales: number; payments: Array<{ mode_of_payment: string; expected_amount: number }> } | null>(null);
+  const [openingCashAmount, setOpeningCashAmount] = useState('0');
+
+  const { user } = useAuthStore();
+
   const {
     items: cartItems,
     customer,
@@ -52,7 +63,9 @@ export default function POSPage() {
     getTotalPaid,
     getBalance,
     warehouse,
-    posProfile
+    posProfile,
+    posSession,
+    setPosSession
   } = useCartStore();
 
   // Search items from IndexedDB
@@ -106,6 +119,103 @@ export default function POSPage() {
       setPostSalePrintHtml(null);
     }
   }, [showPrintAfterSale, lastInvoice?.name, posProfile?.print_format]);
+
+  // Check POS session status on load
+  useEffect(() => {
+    const checkSession = async () => {
+      if (!posProfile?.name || !navigator.onLine) {
+        setIsCheckingSession(false);
+        return;
+      }
+
+      try {
+        const result = await api.getPOSSessionStatus(posProfile.name, user?.username);
+        if (result.is_open && result.session) {
+          setPosSession(result.session);
+        } else {
+          setPosSession(null);
+        }
+      } catch (error) {
+        console.error('Error checking POS session:', error);
+      } finally {
+        setIsCheckingSession(false);
+      }
+    };
+
+    checkSession();
+  }, [posProfile?.name, user?.username]);
+
+  // Open POS session
+  const handleOpenSession = async () => {
+    if (!posProfile || !user) {
+      toast.error('Please select a POS Profile first');
+      return;
+    }
+
+    setIsOpeningSession(true);
+    try {
+      const result = await api.openPOSSession({
+        pos_profile: posProfile.name,
+        user: user.username,
+        company: posProfile.company || '',
+        balance_details: [{ mode_of_payment: 'Cash', opening_amount: parseFloat(openingCashAmount) || 0 }]
+      });
+
+      if (result.success) {
+        setPosSession(result.session);
+        setShowSessionModal(false);
+        toast.success(result.already_open ? 'POS session already open' : 'POS session opened successfully');
+      }
+    } catch (error: any) {
+      console.error('Error opening POS session:', error);
+      toast.error(error.response?.data?.detail || 'Failed to open POS session');
+    } finally {
+      setIsOpeningSession(false);
+    }
+  };
+
+  // Close POS session
+  const handleCloseSession = async () => {
+    if (!posSession) {
+      toast.error('No open session to close');
+      return;
+    }
+
+    setIsClosingSession(true);
+    try {
+      // First get the session summary
+      const summary = await api.getPOSSessionSummary(posSession.name);
+      setSessionSummary(summary);
+
+      // Then close the session
+      const result = await api.closePOSSession({
+        pos_opening_entry: posSession.name
+      });
+
+      if (result.success) {
+        setPosSession(null);
+        setShowSessionModal(false);
+        setSessionSummary(null);
+        toast.success('POS session closed successfully');
+      }
+    } catch (error: any) {
+      console.error('Error closing POS session:', error);
+      toast.error(error.response?.data?.detail || 'Failed to close POS session');
+    } finally {
+      setIsClosingSession(false);
+    }
+  };
+
+  // Load session summary for display
+  const loadSessionSummary = async () => {
+    if (!posSession) return;
+    try {
+      const summary = await api.getPOSSessionSummary(posSession.name);
+      setSessionSummary(summary);
+    } catch (error) {
+      console.error('Error loading session summary:', error);
+    }
+  };
 
   // Helper to get full image URL
   const getImageUrl = (imagePath?: string): string | null => {
@@ -357,16 +467,49 @@ export default function POSPage() {
     <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-4 p-4">
       {/* Left side - Products */}
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Warehouse indicator */}
-        {warehouse && (
-          <div className="mb-3 flex items-center gap-2 text-sm text-gray-600">
-            <MapPin size={16} className="text-primary-500" />
-            <span className="font-medium">{warehouse.warehouse_name || warehouse.name}</span>
+        {/* Warehouse and Session indicator */}
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            {warehouse && (
+              <>
+                <MapPin size={16} className="text-primary-500" />
+                <span className="font-medium">{warehouse.warehouse_name || warehouse.name}</span>
+              </>
+            )}
             {posProfile && (
               <span className="text-gray-400">• {posProfile.name}</span>
             )}
           </div>
-        )}
+
+          {/* Session status button */}
+          {posProfile && (
+            <button
+              onClick={() => {
+                if (posSession) loadSessionSummary();
+                setShowSessionModal(true);
+              }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                posSession
+                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                  : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+              }`}
+            >
+              {isCheckingSession ? (
+                <Loader size={14} className="animate-spin" />
+              ) : posSession ? (
+                <>
+                  <Play size={14} className="fill-current" />
+                  Session Open
+                </>
+              ) : (
+                <>
+                  <Square size={14} />
+                  Session Closed
+                </>
+              )}
+            </button>
+          )}
+        </div>
 
         {/* Search bar */}
         <div className="relative mb-4">
@@ -806,6 +949,125 @@ export default function POSPage() {
                   <Printer size={18} className="mr-2" />
                   Print
                 </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POS Session Modal */}
+      {showSessionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-bold">
+                {posSession ? 'POS Session' : 'Open POS Session'}
+              </h2>
+              <button
+                onClick={() => setShowSessionModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {posSession ? (
+                <>
+                  {/* Open session info */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-green-700 font-medium mb-2">
+                      <Play size={16} className="fill-current" />
+                      Session Active
+                    </div>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <p><span className="font-medium">Profile:</span> {posSession.pos_profile}</p>
+                      <p><span className="font-medium">User:</span> {posSession.user}</p>
+                      <p><span className="font-medium">Started:</span> {posSession.period_start_date}</p>
+                    </div>
+                  </div>
+
+                  {/* Session summary */}
+                  {sessionSummary && (
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="font-medium mb-2">Session Summary</h3>
+                      <div className="text-sm space-y-1">
+                        <p><span className="font-medium">Invoices:</span> {sessionSummary.total_invoices}</p>
+                        <p><span className="font-medium">Total Sales:</span> {formatCurrency(sessionSummary.total_sales)}</p>
+                        {sessionSummary.payments.map((p, i) => (
+                          <p key={i}>
+                            <span className="font-medium">{p.mode_of_payment}:</span> {formatCurrency(p.expected_amount)}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleCloseSession}
+                    disabled={isClosingSession}
+                    className="btn btn-secondary w-full"
+                  >
+                    {isClosingSession ? (
+                      <>
+                        <Loader size={18} className="animate-spin mr-2" />
+                        Closing Session...
+                      </>
+                    ) : (
+                      <>
+                        <Square size={18} className="mr-2" />
+                        Close Session
+                      </>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Open session form */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-yellow-700 font-medium">
+                      <Square size={16} />
+                      No Open Session
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      You need to open a POS session before making sales.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Opening Cash Amount</label>
+                    <input
+                      type="number"
+                      value={openingCashAmount}
+                      onChange={(e) => setOpeningCashAmount(e.target.value)}
+                      className="input"
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Enter the cash in your register at the start of the shift.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleOpenSession}
+                    disabled={isOpeningSession}
+                    className="btn btn-primary w-full"
+                  >
+                    {isOpeningSession ? (
+                      <>
+                        <Loader size={18} className="animate-spin mr-2" />
+                        Opening Session...
+                      </>
+                    ) : (
+                      <>
+                        <Play size={18} className="mr-2" />
+                        Open POS Session
+                      </>
+                    )}
+                  </button>
+                </>
               )}
             </div>
           </div>

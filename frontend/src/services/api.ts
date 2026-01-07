@@ -237,6 +237,37 @@ class ApiService {
     return response.data;
   }
 
+  // POS Session Management
+  async getPOSSessionStatus(posProfile: string, user?: string) {
+    const response = await this.client.get('/pos-session/status', {
+      params: { pos_profile: posProfile, user }
+    });
+    return response.data;
+  }
+
+  async openPOSSession(data: {
+    pos_profile: string;
+    user: string;
+    company: string;
+    balance_details?: Array<{ mode_of_payment: string; opening_amount: number }>;
+  }) {
+    const response = await this.client.post('/pos-session/open', data);
+    return response.data;
+  }
+
+  async closePOSSession(data: {
+    pos_opening_entry: string;
+    closing_amounts?: Array<{ mode_of_payment: string; expected_amount: number; closing_amount: number }>;
+  }) {
+    const response = await this.client.post('/pos-session/close', data);
+    return response.data;
+  }
+
+  async getPOSSessionSummary(posOpeningEntry: string) {
+    const response = await this.client.get(`/pos-session/summary/${posOpeningEntry}`);
+    return response.data;
+  }
+
   // Health check
   async healthCheck() {
     const response = await this.client.get('/health');

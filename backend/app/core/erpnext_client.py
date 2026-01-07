@@ -441,6 +441,137 @@ class ERPNextClient:
             order_by="modified asc"
         )
 
+    # ========== POS Session Management ==========
+
+    def get_open_pos_session(self, pos_profile: str, user: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Get the open POS Opening Entry for a profile."""
+        filters = {
+            "pos_profile": pos_profile,
+            "status": "Open",
+            "docstatus": 1
+        }
+        if user:
+            filters["user"] = user
+
+        sessions = self.get_list(
+            "POS Opening Entry",
+            fields=["name", "pos_profile", "user", "posting_date", "period_start_date", "status"],
+            filters=filters,
+            limit_page_length=1
+        )
+        return sessions[0] if sessions else None
+
+    def create_pos_opening_entry(
+        self,
+        pos_profile: str,
+        user: str,
+        company: str,
+        balance_details: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Create and submit a POS Opening Entry."""
+        from datetime import datetime
+
+        data = {
+            "doctype": "POS Opening Entry",
+            "pos_profile": pos_profile,
+            "user": user,
+            "company": company,
+            "period_start_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "posting_date": datetime.now().strftime("%Y-%m-%d"),
+            "balance_details": balance_details
+        }
+
+        # Create the document
+        result = self.create_doc("POS Opening Entry", data)
+        doc_name = result.get("data", {}).get("name")
+
+        if doc_name:
+            # Submit it (docstatus = 1)
+            self.submit_doc("POS Opening Entry", doc_name)
+
+        return result
+
+    def create_pos_closing_entry(
+        self,
+        pos_opening_entry: str,
+        pos_profile: str,
+        user: str,
+        company: str,
+        posting_date: str,
+        period_end_date: str,
+        payment_reconciliation: List[Dict[str, Any]],
+        invoices: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
+        """Create and submit a POS Closing Entry."""
+        data = {
+            "doctype": "POS Closing Entry",
+            "pos_opening_entry": pos_opening_entry,
+            "pos_profile": pos_profile,
+            "user": user,
+            "company": company,
+            "posting_date": posting_date,
+            "period_end_date": period_end_date,
+            "payment_reconciliation": payment_reconciliation
+        }
+
+        if invoices:
+            data["pos_transactions"] = invoices
+
+        # Create the document
+        result = self.create_doc("POS Closing Entry", data)
+        doc_name = result.get("data", {}).get("name")
+
+        if doc_name:
+            # Submit it (docstatus = 1)
+            self.submit_doc("POS Closing Entry", doc_name)
+
+        return result
+
+    def get_pos_session_invoices(self, pos_opening_entry: str) -> List[Dict[str, Any]]:
+        """Get all invoices created during a POS session."""
+        # Get opening entry details
+        opening = self.get_doc("POS Opening Entry", pos_opening_entry)
+        opening_data = opening.get("data", {})
+
+        pos_profile = opening_data.get("pos_profile")
+        period_start = opening_data.get("period_start_date")
+        user = opening_data.get("user")
+
+        # Get invoices created after opening
+        invoices = self.get_list(
+            "POS Invoice",
+            fields=["name", "grand_total", "posting_date", "posting_time", "customer"],
+            filters={
+                "pos_profile": pos_profile,
+                "owner": user,
+                "docstatus": 1,
+                "creation": [">=", period_start]
+            },
+            limit_page_length=500
+        )
+        return invoices
+
+    def get_pos_session_payments(self, pos_opening_entry: str) -> List[Dict[str, Any]]:
+        """Get payment summary for a POS session."""
+        invoices = self.get_pos_session_invoices(pos_opening_entry)
+
+        # Aggregate payments by mode
+        payment_totals = {}
+        for inv in invoices:
+            inv_doc = self.get_doc("POS Invoice", inv["name"])
+            for payment in inv_doc.get("data", {}).get("payments", []):
+                mode = payment.get("mode_of_payment")
+                amount = payment.get("amount", 0)
+                if mode in payment_totals:
+                    payment_totals[mode] += amount
+                else:
+                    payment_totals[mode] = amount
+
+        return [
+            {"mode_of_payment": mode, "expected_amount": amount, "closing_amount": amount}
+            for mode, amount in payment_totals.items()
+        ]
+
 
 def get_erpnext_client() -> ERPNextClient:
     """Get ERPNext client instance."""
