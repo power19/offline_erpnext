@@ -7,8 +7,8 @@ import { syncService } from '../services/sync';
 import { api } from '../services/api';
 import { useCartStore } from '../store';
 import { useAuthStore } from '../store/auth';
-import { formatCurrency, formatQty } from '../utils/format';
-import { Item, Customer, Discount, CartItem } from '../types';
+import { formatCurrency } from '../utils/format';
+import { Item, Discount, CartItem } from '../types';
 
 export default function POSPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -443,8 +443,7 @@ export default function POSPage() {
         warehouse: warehouse?.name,
         posting_date: new Date().toISOString().split('T')[0],
         status: 'Paid',
-        is_return: false,
-        synced: true
+        is_return: false
       });
 
       toast.success('Sale completed!');

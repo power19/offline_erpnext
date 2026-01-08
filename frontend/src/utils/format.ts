@@ -30,13 +30,13 @@ export function formatDate(
 ): string {
   const d = typeof date === 'string' ? new Date(date) : date;
 
-  const options: Intl.DateTimeFormatOptions = {
+  const formatOptions: Record<string, Intl.DateTimeFormatOptions> = {
     short: { month: 'short', day: 'numeric', year: 'numeric' },
     long: { month: 'long', day: 'numeric', year: 'numeric' },
     full: { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }
-  }[format];
+  };
 
-  return new Intl.DateTimeFormat(locale, options).format(d);
+  return new Intl.DateTimeFormat(locale, formatOptions[format]).format(d);
 }
 
 // Time formatting

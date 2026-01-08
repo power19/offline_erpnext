@@ -36,31 +36,6 @@ export default function ReturnsPage() {
     []
   );
 
-  const handleSearch = async () => {
-    if (!searchQuery || searchQuery.length < 2) return;
-
-    if (isOnline) {
-      setLoading(true);
-      try {
-        const results = await api.searchInvoices(searchQuery);
-        // Combine with local results, removing duplicates
-        const allResults = [...(localInvoices || [])];
-        for (const inv of results) {
-          if (!allResults.find((i) => i.name === inv.name)) {
-            allResults.push(inv);
-          }
-        }
-        return allResults;
-      } catch (error) {
-        console.error('Online search failed:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    return localInvoices;
-  };
-
   const handleSelectInvoice = async (invoice: POSInvoice) => {
     setSelectedInvoice(invoice);
     setLoading(true);

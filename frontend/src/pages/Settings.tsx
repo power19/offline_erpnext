@@ -17,11 +17,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../services/database';
-import { syncService } from '../services/sync';
 import { useSync } from '../hooks/useSync';
 import { useCartStore } from '../store';
 import { useAuthStore } from '../store/auth';
-import { formatRelativeTime, formatDateTime } from '../utils/format';
+import { formatRelativeTime } from '../utils/format';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -114,6 +113,10 @@ export default function SettingsPage() {
   const handleSyncNow = async () => {
     try {
       const result = await sync();
+      if (!result) {
+        toast.error('Sync unavailable');
+        return;
+      }
       if (result.synced > 0) {
         toast.success(`Synced ${result.synced} item(s)`);
       } else if (result.failed > 0) {

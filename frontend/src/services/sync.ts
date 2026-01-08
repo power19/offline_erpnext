@@ -280,7 +280,7 @@ class SyncService {
       created_at: now
     };
 
-    const id = await db.invoices.add(newInvoice);
+    const id = await db.invoices.add(newInvoice) as number;
 
     // Update local stock
     for (const item of invoice.items) {
@@ -362,7 +362,7 @@ class SyncService {
       created_at: now
     };
 
-    const id = await db.stockEntries.add(newEntry);
+    const id = await db.stockEntries.add(newEntry) as number;
 
     // Update local stock based on entry type
     for (const item of entry.items) {

@@ -13,8 +13,8 @@ import toast from 'react-hot-toast';
 import { db } from '../services/database';
 import { api } from '../services/api';
 import { syncService } from '../services/sync';
-import { formatNumber, formatQty } from '../utils/format';
-import { StockBalance, Warehouse, Item } from '../types';
+import { formatNumber } from '../utils/format';
+import { StockBalance, Warehouse } from '../types';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 type TabType = 'check' | 'add' | 'transfer';
@@ -68,11 +68,11 @@ export default function InventoryPage() {
         )}
 
         {activeTab === 'add' && (
-          <AddStockTab warehouses={warehouses || []} isOnline={isOnline} />
+          <AddStockTab warehouses={warehouses || []} />
         )}
 
         {activeTab === 'transfer' && (
-          <TransferStockTab warehouses={warehouses || []} isOnline={isOnline} />
+          <TransferStockTab warehouses={warehouses || []} />
         )}
       </div>
     </div>
@@ -325,11 +325,9 @@ function StockCheckTab({
 
 // Add Stock Tab
 function AddStockTab({
-  warehouses,
-  isOnline
+  warehouses
 }: {
   warehouses: Warehouse[];
-  isOnline: boolean;
 }) {
   const [itemCode, setItemCode] = useState('');
   const [itemSearch, setItemSearch] = useState('');
@@ -338,7 +336,6 @@ function AddStockTab({
   const [warehouse, setWarehouse] = useState('');
   const [remarks, setRemarks] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const items = useLiveQuery(
     async () => {
@@ -504,11 +501,9 @@ function AddStockTab({
 
 // Transfer Stock Tab
 function TransferStockTab({
-  warehouses,
-  isOnline
+  warehouses
 }: {
   warehouses: Warehouse[];
-  isOnline: boolean;
 }) {
   const [itemCode, setItemCode] = useState('');
   const [itemSearch, setItemSearch] = useState('');

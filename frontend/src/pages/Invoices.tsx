@@ -7,9 +7,7 @@ import {
   CheckCircle,
   XCircle,
   RotateCcw,
-  Filter,
-  ChevronDown,
-  ExternalLink
+  ChevronDown
 } from 'lucide-react';
 import { db } from '../services/database';
 import { formatCurrency, formatDate, formatDateTime } from '../utils/format';
