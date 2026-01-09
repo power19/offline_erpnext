@@ -35,6 +35,15 @@ async function restoreBackendConfig() {
   }
 }
 
+// Component to protect admin-only routes
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAdmin } = useAuthStore();
+  if (!isAdmin()) {
+    return <Navigate to="/pos" replace />;
+  }
+  return <>{children}</>;
+}
+
 function App() {
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
   const location = useLocation();
@@ -113,9 +122,9 @@ function App() {
         <Route index element={<Navigate to="/pos" replace />} />
         <Route path="pos" element={<POSPage />} />
         <Route path="returns" element={<ReturnsPage />} />
-        <Route path="inventory" element={<InventoryPage />} />
+        <Route path="inventory" element={<AdminRoute><InventoryPage /></AdminRoute>} />
         <Route path="invoices" element={<InvoicesPage />} />
-        <Route path="settings" element={<SettingsPage />} />
+        <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
       </Route>
 
       {/* Fallback */}

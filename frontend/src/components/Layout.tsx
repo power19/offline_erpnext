@@ -25,13 +25,16 @@ export default function Layout() {
   const { user, logout, isAdmin } = useAuthStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const navItems = [
-    { to: '/pos', icon: ShoppingCart, label: 'POS' },
-    { to: '/returns', icon: RotateCcw, label: 'Returns' },
-    { to: '/inventory', icon: Package, label: 'Inventory' },
-    { to: '/invoices', icon: FileText, label: 'Invoices' },
-    { to: '/settings', icon: Settings, label: 'Settings' }
+  // Filter nav items based on role
+  const allNavItems = [
+    { to: '/pos', icon: ShoppingCart, label: 'POS', adminOnly: false },
+    { to: '/returns', icon: RotateCcw, label: 'Returns', adminOnly: false },
+    { to: '/inventory', icon: Package, label: 'Inventory', adminOnly: true },
+    { to: '/invoices', icon: FileText, label: 'Invoices', adminOnly: false },
+    { to: '/settings', icon: Settings, label: 'Settings', adminOnly: true }
   ];
+
+  const navItems = allNavItems.filter(item => !item.adminOnly || isAdmin());
 
   const handleLogout = async () => {
     await logout();
