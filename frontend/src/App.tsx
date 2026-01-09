@@ -52,6 +52,9 @@ function App() {
         await restoreBackendConfig();
         // Restore user session
         await restoreSession();
+      } else {
+        // Setup not complete, but we still need to clear loading state
+        useAuthStore.getState().setIsLoading(false);
       }
     };
     initialize();
