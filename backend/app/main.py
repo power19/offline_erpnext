@@ -147,7 +147,8 @@ async def update_config(config: ConfigRequest):
 async def get_config_status():
     """Check if ERPNext is configured."""
     return {
-        "configured": bool(runtime_config.erpnext_url),
+        "configured": runtime_config.is_configured,
+        "preconfigured": runtime_config.is_preconfigured,
         "url": runtime_config.erpnext_url or None
     }
 
@@ -157,7 +158,9 @@ async def startup_event():
     """Startup event handler."""
     logger.info("Starting Offline POS Backend...")
     logger.info(f"Debug mode: {settings.debug}")
-    if runtime_config.erpnext_url:
+    if runtime_config.is_preconfigured:
+        logger.info(f"ERPNext pre-configured via environment: {runtime_config.erpnext_url}")
+    elif runtime_config.erpnext_url:
         logger.info(f"ERPNext URL: {runtime_config.erpnext_url}")
     else:
         logger.info("ERPNext not configured - waiting for setup")

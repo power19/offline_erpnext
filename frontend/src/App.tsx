@@ -7,11 +7,24 @@ import POSPage from './pages/POS';
 import ReturnsPage from './pages/Returns';
 import InventoryPage from './pages/Inventory';
 import InvoicesPage from './pages/Invoices';
-import SettingsPage from './pages/Settings';
+import SettingsPage, { StaffPermissions, DEFAULT_STAFF_PERMISSIONS } from './pages/Settings';
 import SetupPage from './pages/Setup';
 import LoginPage from './pages/Login';
 
-// Restore backend config from IndexedDB
+// Check if backend is pre-configured via environment variables
+async function checkBackendConfig(): Promise<{ configured: boolean; preconfigured: boolean }> {
+  try {
+    const response = await fetch('/api/config/status');
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch (error) {
+    console.error('Failed to check backend config:', error);
+  }
+  return { configured: false, preconfigured: false };
+}
+
+// Restore backend config from IndexedDB (only if not pre-configured)
 async function restoreBackendConfig() {
   try {
     const url = await db.getSetting('erpnext_url');
@@ -44,39 +57,109 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Component to protect routes based on staff permissions
+function PermissionRoute({
+  children,
+  permissionKey,
+  permissions
+}: {
+  children: React.ReactNode;
+  permissionKey: keyof StaffPermissions;
+  permissions: StaffPermissions;
+}) {
+  const { isAdmin } = useAuthStore();
+
+  // Admin always has access
+  if (isAdmin()) {
+    return <>{children}</>;
+  }
+
+  // Check staff permission
+  if (!permissions[permissionKey]) {
+    return <Navigate to="/pos" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function App() {
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
+  const [isPreconfigured, setIsPreconfigured] = useState(false);
+  const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>(DEFAULT_STAFF_PERMISSIONS);
   const location = useLocation();
   const { isAuthenticated, isLoading, restoreSession } = useAuthStore();
 
   useEffect(() => {
     const initialize = async () => {
-      // Check setup status
-      const setupComplete = await db.getSetting('setup_complete');
-      const isComplete = setupComplete === 'true';
-      setIsSetupComplete(isComplete);
+      // Load staff permissions
+      const savedPermissions = await db.getSetting('staff_permissions');
+      if (savedPermissions) {
+        try {
+          setStaffPermissions(JSON.parse(savedPermissions));
+        } catch (e) {
+          console.error('Failed to parse permissions:', e);
+        }
+      }
 
-      // Restore backend config if setup is complete
-      if (isComplete) {
-        await restoreBackendConfig();
+      // First check if backend is pre-configured via environment variables
+      const backendStatus = await checkBackendConfig();
+
+      if (backendStatus.preconfigured) {
+        // Backend is pre-configured - skip setup, go straight to login
+        console.log('Backend pre-configured via environment');
+        setIsPreconfigured(true);
+        setIsSetupComplete(true);
+
+        // Still need to sync initial data if not done before
+        const dataInitialized = await db.getSetting('data_initialized');
+        if (dataInitialized !== 'true') {
+          // Will be handled by login/first sync
+        }
+
         // Restore user session
         await restoreSession();
       } else {
-        // Setup not complete, but we still need to clear loading state
-        useAuthStore.getState().setIsLoading(false);
+        // Check local setup status
+        const setupComplete = await db.getSetting('setup_complete');
+        const isComplete = setupComplete === 'true';
+        setIsSetupComplete(isComplete);
+
+        if (isComplete) {
+          // Restore backend config from IndexedDB
+          await restoreBackendConfig();
+          // Restore user session
+          await restoreSession();
+        } else {
+          // Setup not complete, clear loading state
+          useAuthStore.getState().setIsLoading(false);
+        }
       }
     };
     initialize();
   }, [restoreSession]);
 
-  // Re-check setup on route change (but don't restore config again)
+  // Re-check setup and permissions on route change
   useEffect(() => {
     const checkSetup = async () => {
+      // Reload permissions (in case admin changed them)
+      const savedPermissions = await db.getSetting('staff_permissions');
+      if (savedPermissions) {
+        try {
+          setStaffPermissions(JSON.parse(savedPermissions));
+        } catch (e) {
+          console.error('Failed to parse permissions:', e);
+        }
+      }
+
+      if (isPreconfigured) {
+        setIsSetupComplete(true);
+        return;
+      }
       const setupComplete = await db.getSetting('setup_complete');
       setIsSetupComplete(setupComplete === 'true');
     };
     checkSetup();
-  }, [location.pathname]);
+  }, [location.pathname, isPreconfigured]);
 
   // Show loading while checking setup status and auth
   if (isSetupComplete === null || isLoading) {
@@ -89,8 +172,17 @@ function App() {
 
   return (
     <Routes>
-      {/* Setup page - always accessible */}
-      <Route path="/setup" element={<SetupPage />} />
+      {/* Setup page - only accessible if not pre-configured */}
+      <Route
+        path="/setup"
+        element={
+          isPreconfigured ? (
+            <Navigate to="/login" replace />
+          ) : (
+            <SetupPage />
+          )
+        }
+      />
 
       {/* Login page - accessible after setup but before auth */}
       <Route
@@ -121,9 +213,23 @@ function App() {
       >
         <Route index element={<Navigate to="/pos" replace />} />
         <Route path="pos" element={<POSPage />} />
-        <Route path="returns" element={<ReturnsPage />} />
+        <Route
+          path="returns"
+          element={
+            <PermissionRoute permissionKey="returns" permissions={staffPermissions}>
+              <ReturnsPage />
+            </PermissionRoute>
+          }
+        />
         <Route path="inventory" element={<AdminRoute><InventoryPage /></AdminRoute>} />
-        <Route path="invoices" element={<InvoicesPage />} />
+        <Route
+          path="invoices"
+          element={
+            <PermissionRoute permissionKey="invoices" permissions={staffPermissions}>
+              <InvoicesPage />
+            </PermissionRoute>
+          }
+        />
         <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
       </Route>
 

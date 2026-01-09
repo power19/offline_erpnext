@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   ShoppingCart,
@@ -17,24 +17,57 @@ import {
 import { useSync } from '../hooks/useSync';
 import { useAuthStore } from '../store/auth';
 import { formatRelativeTime } from '../utils/format';
+import { db } from '../services/database';
 import toast from 'react-hot-toast';
+import { StaffPermissions, DEFAULT_STAFF_PERMISSIONS } from '../pages/Settings';
 
 export default function Layout() {
   const navigate = useNavigate();
   const { isOnline, isSyncing, pendingSyncCount, lastSyncTime, sync } = useSync();
   const { user, logout, isAdmin } = useAuthStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>(DEFAULT_STAFF_PERMISSIONS);
 
-  // Filter nav items based on role
+  // Load staff permissions
+  useEffect(() => {
+    const loadPermissions = async () => {
+      const savedPermissions = await db.getSetting('staff_permissions');
+      if (savedPermissions) {
+        try {
+          setStaffPermissions(JSON.parse(savedPermissions));
+        } catch (e) {
+          console.error('Failed to parse permissions:', e);
+        }
+      }
+    };
+    loadPermissions();
+  }, []);
+
+  // Define all nav items with permission requirements
   const allNavItems = [
-    { to: '/pos', icon: ShoppingCart, label: 'POS', adminOnly: false },
-    { to: '/returns', icon: RotateCcw, label: 'Returns', adminOnly: false },
-    { to: '/inventory', icon: Package, label: 'Inventory', adminOnly: true },
-    { to: '/invoices', icon: FileText, label: 'Invoices', adminOnly: false },
-    { to: '/settings', icon: Settings, label: 'Settings', adminOnly: true }
+    { to: '/pos', icon: ShoppingCart, label: 'POS', adminOnly: false, permissionKey: 'pos' as keyof StaffPermissions },
+    { to: '/returns', icon: RotateCcw, label: 'Returns', adminOnly: false, permissionKey: 'returns' as keyof StaffPermissions },
+    { to: '/inventory', icon: Package, label: 'Inventory', adminOnly: true, permissionKey: null },
+    { to: '/invoices', icon: FileText, label: 'Invoices', adminOnly: false, permissionKey: 'invoices' as keyof StaffPermissions },
+    { to: '/settings', icon: Settings, label: 'Settings', adminOnly: true, permissionKey: null }
   ];
 
-  const navItems = allNavItems.filter(item => !item.adminOnly || isAdmin());
+  // Filter nav items based on role and permissions
+  const navItems = allNavItems.filter(item => {
+    // Admin sees everything
+    if (isAdmin()) {
+      return true;
+    }
+    // Admin-only items are hidden for Staff
+    if (item.adminOnly) {
+      return false;
+    }
+    // Check staff permissions for non-admin items
+    if (item.permissionKey) {
+      return staffPermissions[item.permissionKey];
+    }
+    return true;
+  });
 
   const handleLogout = async () => {
     await logout();

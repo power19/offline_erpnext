@@ -13,7 +13,10 @@ import {
   Server,
   CheckCircle,
   ExternalLink,
-  Shield
+  Shield,
+  Users,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../services/database';
@@ -21,6 +24,19 @@ import { useSync } from '../hooks/useSync';
 import { useCartStore } from '../store';
 import { useAuthStore } from '../store/auth';
 import { formatRelativeTime } from '../utils/format';
+
+// Default permissions for Staff role
+export interface StaffPermissions {
+  pos: boolean;      // Always true
+  returns: boolean;
+  invoices: boolean;
+}
+
+export const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
+  pos: true,
+  returns: true,
+  invoices: true
+};
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -31,15 +47,37 @@ export default function SettingsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [erpnextUrl, setErpnextUrl] = useState<string | null>(null);
+  const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>(DEFAULT_STAFF_PERMISSIONS);
 
-  // Load ERPNext URL from settings
+  // Load ERPNext URL and permissions from settings
   useEffect(() => {
-    const loadUrl = async () => {
+    const loadSettings = async () => {
       const url = await db.getSetting('erpnext_url');
       setErpnextUrl(url || null);
+
+      // Load staff permissions
+      const savedPermissions = await db.getSetting('staff_permissions');
+      if (savedPermissions) {
+        try {
+          setStaffPermissions(JSON.parse(savedPermissions));
+        } catch (e) {
+          console.error('Failed to parse permissions:', e);
+        }
+      }
     };
-    loadUrl();
+    loadSettings();
   }, []);
+
+  // Save permissions when changed
+  const handlePermissionChange = async (key: keyof StaffPermissions, value: boolean) => {
+    // POS is always enabled
+    if (key === 'pos') return;
+
+    const newPermissions = { ...staffPermissions, [key]: value };
+    setStaffPermissions(newPermissions);
+    await db.setSetting('staff_permissions', JSON.stringify(newPermissions));
+    toast.success('Permissions updated');
+  };
 
   // Get data counts
   const counts = useLiveQuery(async () => {
@@ -182,6 +220,93 @@ export default function SettingsPage() {
               Configure
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Staff Permissions - Admin only */}
+      {isAdmin() && (
+        <div className="card p-4 space-y-4">
+          <h2 className="font-bold flex items-center gap-2">
+            <Users size={20} />
+            Staff Permissions
+          </h2>
+          <p className="text-sm text-gray-500">
+            Control which features Staff users can access
+          </p>
+
+          <div className="space-y-3">
+            {/* POS - Always enabled */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Eye size={18} className="text-green-600" />
+                <div>
+                  <div className="font-medium">POS</div>
+                  <div className="text-xs text-gray-500">Create sales invoices</div>
+                </div>
+              </div>
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                Always On
+              </span>
+            </div>
+
+            {/* Returns */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                {staffPermissions.returns ? (
+                  <Eye size={18} className="text-green-600" />
+                ) : (
+                  <EyeOff size={18} className="text-gray-400" />
+                )}
+                <div>
+                  <div className="font-medium">Returns</div>
+                  <div className="text-xs text-gray-500">Process customer returns</div>
+                </div>
+              </div>
+              <button
+                onClick={() => handlePermissionChange('returns', !staffPermissions.returns)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  staffPermissions.returns ? 'bg-green-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    staffPermissions.returns ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Invoices */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                {staffPermissions.invoices ? (
+                  <Eye size={18} className="text-green-600" />
+                ) : (
+                  <EyeOff size={18} className="text-gray-400" />
+                )}
+                <div>
+                  <div className="font-medium">Invoices</div>
+                  <div className="text-xs text-gray-500">View invoice history</div>
+                </div>
+              </div>
+              <button
+                onClick={() => handlePermissionChange('invoices', !staffPermissions.invoices)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  staffPermissions.invoices ? 'bg-green-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    staffPermissions.invoices ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-400 text-center">
+            Inventory and Settings are always Admin-only
+          </p>
         </div>
       )}
 

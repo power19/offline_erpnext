@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Eye, EyeOff, Loader, AlertCircle } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, Loader, AlertCircle, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../services/database';
 import { useAuthStore } from '../store/auth';
 import { useCartStore } from '../store';
+import { api } from '../services/api';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -26,6 +28,7 @@ export default function LoginPage() {
     }
 
     setLoading(true);
+    setLoadingMessage('Signing in...');
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -51,6 +54,55 @@ export default function LoginPage() {
           setError('No POS Profile assigned to your account. Contact administrator.');
           setLoading(false);
           return;
+        }
+
+        // Check if initial data has been loaded (for pre-configured systems)
+        const dataInitialized = await db.getSetting('data_initialized');
+        if (dataInitialized !== 'true') {
+          setLoadingMessage('Downloading data for first time use...');
+          try {
+            // Pull initial data from ERPNext
+            const pullResult = await api.pullData(
+              ['Item', 'Customer', 'Warehouse', 'POS Profile', 'Mode of Payment'],
+              undefined
+            );
+
+            // Store pulled data in IndexedDB
+            if (pullResult.items) {
+              await db.items.clear();
+              await db.items.bulkAdd(pullResult.items);
+            }
+            if (pullResult.customers) {
+              await db.customers.clear();
+              await db.customers.bulkAdd(pullResult.customers);
+            }
+            if (pullResult.warehouses) {
+              await db.warehouses.clear();
+              await db.warehouses.bulkAdd(pullResult.warehouses);
+            }
+            if (pullResult.stock_balance) {
+              await db.stockBalance.clear();
+              await db.stockBalance.bulkAdd(pullResult.stock_balance);
+            }
+            if (pullResult.pos_profiles) {
+              await db.posProfiles.clear();
+              await db.posProfiles.bulkAdd(pullResult.pos_profiles);
+            }
+            if (pullResult.payment_methods) {
+              await db.paymentMethods.clear();
+              await db.paymentMethods.bulkAdd(pullResult.payment_methods);
+            }
+
+            // Mark data as initialized
+            await db.setSetting('data_initialized', 'true');
+            await db.setSetting('setup_complete', 'true');
+            await db.setSetting('last_sync', new Date().toISOString());
+
+            toast.success('Initial data loaded successfully!');
+          } catch (pullError) {
+            console.error('Failed to pull initial data:', pullError);
+            toast.error('Could not load initial data. Will retry on next sync.');
+          }
         }
 
         // Auto-set warehouse, POS profile and default customer from user's default profile
@@ -101,6 +153,7 @@ export default function LoginPage() {
       setError('Could not connect to server');
     } finally {
       setLoading(false);
+      setLoadingMessage('');
     }
   };
 
@@ -176,8 +229,12 @@ export default function LoginPage() {
           >
             {loading ? (
               <>
-                <Loader className="animate-spin mr-2" size={20} />
-                Signing in...
+                {loadingMessage.includes('Downloading') ? (
+                  <Download className="animate-bounce mr-2" size={20} />
+                ) : (
+                  <Loader className="animate-spin mr-2" size={20} />
+                )}
+                {loadingMessage || 'Signing in...'}
               </>
             ) : (
               'Sign In'
