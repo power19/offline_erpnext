@@ -132,15 +132,37 @@ export default function LoginPage() {
             const warehouse = await db.warehouses.where('name').equals(defaultProfile.warehouse).first();
             if (warehouse) {
               setWarehouse(warehouse);
+              console.log('[Login] Set warehouse:', warehouse.name);
+            } else {
+              console.log('[Login] Warehouse not found in IndexedDB:', defaultProfile.warehouse);
             }
           }
 
           // Set default customer (Walk-in Customer) from the profile
           if (defaultProfile.customer) {
-            const customer = await db.customers.where('name').equals(defaultProfile.customer).first();
+            console.log('[Login] Looking for default customer:', defaultProfile.customer);
+            // Try to find by name first
+            let customer = await db.customers.where('name').equals(defaultProfile.customer).first();
+
+            // If not found, try by customer_name
+            if (!customer) {
+              customer = await db.customers.where('customer_name').equals(defaultProfile.customer).first();
+            }
+
             if (customer) {
               setCustomer(customer);
+              console.log('[Login] Set default customer:', customer.name, customer.customer_name);
+            } else {
+              // Create a minimal customer object as fallback
+              console.log('[Login] Customer not found in IndexedDB, creating fallback:', defaultProfile.customer);
+              const fallbackCustomer = {
+                name: defaultProfile.customer,
+                customer_name: defaultProfile.customer
+              };
+              setCustomer(fallbackCustomer);
             }
+          } else {
+            console.log('[Login] No default customer set in POS Profile');
           }
         }
 
