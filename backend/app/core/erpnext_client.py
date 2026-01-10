@@ -122,11 +122,37 @@ class ERPNextClient:
 
     def submit_doc(self, doctype: str, name: str) -> Dict[str, Any]:
         """Submit a document (change docstatus from 0 to 1)."""
-        return self._make_request(
-            "POST",
-            "/api/method/frappe.client.submit",
-            data={"doc": {"doctype": doctype, "name": name}}
+        base_url = self._get_base_url()
+        if not base_url:
+            raise Exception("ERPNext not configured. Please complete setup.")
+
+        url = f"{base_url}/api/method/frappe.client.submit"
+
+        # frappe.client.submit expects 'doc' as a JSON string in form data
+        response = self.session.post(
+            url,
+            data={"doc": json.dumps({"doctype": doctype, "name": name})},
+            headers=self._get_headers(),
+            timeout=30
         )
+
+        if not response.ok:
+            error_msg = f"Failed to submit {doctype} {name}"
+            try:
+                error_data = response.json()
+                if "_server_messages" in error_data:
+                    messages = json.loads(error_data["_server_messages"])
+                    if messages:
+                        msg_data = json.loads(messages[0])
+                        error_msg = msg_data.get("message", str(msg_data))
+                elif "message" in error_data:
+                    error_msg = error_data["message"]
+            except:
+                error_msg = response.text[:500] if response.text else error_msg
+            logger.error(f"Submit error: {error_msg}")
+            raise Exception(error_msg)
+
+        return response.json()
 
     # ========== Item Operations ==========
 
