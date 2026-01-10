@@ -346,20 +346,26 @@ async def get_invoice_print_html(
             raise HTTPException(status_code=404, detail="Invoice not found")
 
         # Use the provided print_format, or get from POS Profile, or default to Standard
-        actual_print_format = print_format
+        actual_print_format = print_format if print_format else None
+        logger.info(f"Received print_format parameter: '{print_format}'")
+
         if not actual_print_format:
             # Try to get print_format from the POS Profile associated with this invoice
             pos_profile_name = doc_data.get("pos_profile")
+            logger.info(f"Invoice pos_profile: '{pos_profile_name}'")
             if pos_profile_name:
                 try:
                     profile = client.get_doc("POS Profile", pos_profile_name)
-                    actual_print_format = profile.get("data", {}).get("print_format")
-                    logger.info(f"Got print_format from POS Profile {pos_profile_name}: '{actual_print_format}'")
+                    profile_print_format = profile.get("data", {}).get("print_format")
+                    logger.info(f"POS Profile '{pos_profile_name}' print_format: '{profile_print_format}'")
+                    if profile_print_format:
+                        actual_print_format = profile_print_format
                 except Exception as e:
                     logger.warning(f"Could not get POS Profile: {e}")
 
         if not actual_print_format:
             actual_print_format = "Standard"
+            logger.info("Using default 'Standard' print format")
 
         logger.info(f"Using print format: '{actual_print_format}'")
 
